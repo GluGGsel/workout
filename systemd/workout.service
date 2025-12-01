@@ -1,0 +1,12 @@
+[Unit]
+Description=Workout WebApp
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/workout-app
+ExecStart=/home/ubuntu/workout-app/venv/bin/gunicorn -b 0.0.0.0:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
