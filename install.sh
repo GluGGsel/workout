@@ -1,68 +1,45 @@
-#!/usr/bin/env bash
-# === Workout WebApp Installation via Git (root / LXC) ===
-# - Erwartet: Code liegt bereits per git clone im aktuellen Ordner
-# - Installiert: venv, Python-Pakete, systemd-Service
-# --------------------------------------------------------------
-
+#!/bin/bash
 set -e
 
-echo ""
-echo "=== Workout WebApp Installer (via Git, root-Version) ==="
-echo ""
+echo "=== Workout-App Installation startet ==="
 
-REPO_DIR=$(pwd)
-SERVICE_NAME="workout"
-APP_USER="root"
+# 1) Pakete installieren
+echo "[1/6] Installiere Systempakete..."
+apt update
+apt install -y python3 python3-venv python3-pip git gunicorn
 
-echo "Projektordner: $REPO_DIR"
-echo "Service-Name:  $SERVICE_NAME"
-echo "User:          $APP_USER"
-echo ""
+# 2) Benutzer prüfen
+echo "[2/6] Prüfe Benutzer 'ubuntu'..."
+id ubuntu 2>/dev/null || useradd -m -s /bin/bash ubuntu
 
-# 1) Basis-Pakete installieren
-echo "[1/4] Installiere Basis-Pakete..."
-apt update -y
-apt install -y python3 python3-venv python3-pip gunicorn curl
+# 3) Projektverzeichnis vorbereiten
+echo "[3/6] Sync Projektdateien..."
+install -d -o ubuntu -g ubuntu /home/ubuntu/workout-app
+cp -r . /home/ubuntu/workout-app
 
-# 2) Python venv erstellen + Pakete installieren
-echo "[2/4] Erzeuge Python-venv im Projektordner..."
-python3 -m venv "$REPO_DIR/venv"
+# 4) Python venv + Dependencies
+echo "[4/6] Erstelle virtuelle Umgebung..."
+cd /home/ubuntu/workout-app
+sudo -u ubuntu python3 -m venv venv
+sudo -u ubuntu bash -lc 'venv/bin/pip install --upgrade pip'
+sudo -u ubuntu bash -lc 'venv/bin/pip install flask gunicorn'
 
-if [[ -f "$REPO_DIR/requirements.txt" ]]; then
-    echo "Installiere Python-Abhängigkeiten aus requirements.txt..."
-    bash -lc "cd '$REPO_DIR' && venv/bin/pip install -r requirements.txt"
-else
-    echo "Installiere Basis-Pakete (Flask + Gunicorn)..."
-    bash -lc "cd '$REPO_DIR' && venv/bin/pip install flask gunicorn"
-fi
-
-# 3) systemd-Service anlegen
-echo "[3/4] Erzeuge systemd-Service unter /etc/systemd/system/${SERVICE_NAME}.service ..."
-
-cat >/etc/systemd/system/${SERVICE_NAME}.service <<EOF
-[Unit]
-Description=Workout WebApp
-After=network.target
-
-[Service]
-User=$APP_USER
-WorkingDirectory=$REPO_DIR
-ExecStart=$REPO_DIR/venv/bin/gunicorn -b 0.0.0.0:8000 app:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# 4) Service aktivieren & starten
-echo "[4/4] Service aktivieren & starten..."
+# 5) systemd Service installieren
+echo "[5/6] Installiere systemd Service..."
+cp systemd/workout.service /etc/systemd/system/workout.service
 systemctl daemon-reload
-systemctl enable --now ${SERVICE_NAME}.service
+
+# 6) Service starten
+echo "[6/6] Starte Service..."
+systemctl enable --now workout.service
+
+sleep 1
+curl -s http://127.0.0.1:8000/api/state || true
 
 echo ""
-echo "=== Installation abgeschlossen ==="
-echo "Die App sollte jetzt laufen unter:"
-echo "  http://<SERVER-IP>:8000/?view=mann"
-echo "  http://<SERVER-IP>:8000/?view=frau"
-echo ""
-systemctl --no-pager status ${SERVICE_NAME}.service || true
+echo "==========================================="
+echo "Installation abgeschlossen!"
+echo "App erreichbar unter:"
+echo "   http://<SERVER-IP>:8000/?view=mann"
+echo "   http://<SERVER-IP>:8000/?view=frau"
+echo "==========================================="
