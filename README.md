@@ -2,6 +2,9 @@
 
 Kleine Flask-App für ein gemeinsames Daily-Workout (Mann/Frau), mit persistentem JSON-Status.
 
+## Works so far in:
+- ubuntu lxc on proxmox
+- 
 ## Struktur
 
 - `app.py` – Flask-App und API
@@ -33,5 +36,3 @@ sudo chmod +x install.sh
 sudo ./install.sh
 
 
-# Works so far in:
-- ubuntu lxc on proxmox
