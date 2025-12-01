@@ -11,21 +11,25 @@ Kleine Flask-App für ein gemeinsames Daily-Workout (Mann/Frau), mit persistente
 - `requirements.txt` – Python-Abhängigkeiten
 
 
-# To install:
-## 1) Git installieren
+## Installation
+
+Auf einem frischen Ubuntu 24.x Server:
+
+```bash
+# 1) Git installieren
 sudo apt update
 sudo apt install -y git
 
-## 2) Repo klonen
+# 2) Repo klonen
 git clone https://github.com/GluGGsel/workout-counter.git
 
-## 3) In das Projekt wechseln
+# 3) In das Projekt wechseln
 cd workout-counter
 
-## 4) Installationsscript ausführbar machen
+# 4) Installationsscript ausführbar machen
 sudo chmod +x install.sh
 
-## 5) Installationsscript ausführen
+# 5) Installationsscript ausführen
 sudo ./install.sh
 
 
