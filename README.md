@@ -57,4 +57,10 @@ sudo apt install -y git
 git clone https://github.com/GluGGsel/workout-counter.git
 cd workout-counter
 sudo chmod +x install.sh
-sudo ./install.sh
+sudo ./install.sh  
+
+---
+
+# WebUI aufrufen unter:
+http://<SERVER-IP>:8000/?view=mann
+http://<SERVER-IP>:8000/?view=frau
