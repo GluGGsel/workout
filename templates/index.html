@@ -19,6 +19,7 @@
       -webkit-text-size-adjust:100%
     }
     h1{margin:0 0 6px;font-size:2rem;}
+    .muted{color:var(--muted);font-size:1rem;margin:4px 0 16px}
     .counter-title{
       margin-top:4px;
       font-size:1.3rem;
@@ -33,19 +34,20 @@
       border:1px solid #ddd;
       font-size:0.95rem;
     }
-    .overall-row{
-      display:flex;
-      justify-content:space-between;
-      padding:4px 0;
-    }
     .overall-person{
       margin-top:6px;
       margin-bottom:4px;
       font-weight:600;
     }
+    .overall-row{
+      display:flex;
+      justify-content:space-between;
+      padding:3px 0;
+    }
     .text-small{
       font-size:0.85rem;
       color:#666;
+      margin-bottom:6px;
     }
     .date-line{
       font-size:1.8rem;
@@ -68,8 +70,8 @@
       display:flex;
       justify-content:space-between;
       align-items:center;
-      margin:12px 0;
-      padding:12px 10px;
+      margin:10px 0;
+      padding:10px;
       border-radius:10px;
       background:white;
       cursor:pointer;
@@ -82,34 +84,43 @@
       color:#1a7f1a;
       font-weight:bold;
     }
-
-    .skip-btn{
-      border:1px dashed #bbb;
-      padding:10px;
-      border-radius:8px;
-      margin:10px 0;
-      cursor:pointer;
-      font-size:0.95rem;
-      background:#fff7f0;
+    .exercise.injured{
+      background:#fff5f5;
+      border-color:#f97373;
+      color:#b91c1c;
+      font-weight:bold;
+    }
+    .exercise.injured strong{
+      color:#b91c1c;
     }
 
+    .skip-btn,
+    .injured-btn,
     .cant-btn{
-      border:1px solid #444;
       padding:10px;
       border-radius:8px;
-      margin:10px 0;
+      margin:8px 0;
       cursor:pointer;
       font-size:0.95rem;
+    }
+    .skip-btn{
+      border:1px dashed #bbb;
+      background:#fff7f0;
+    }
+    .injured-btn{
+      border:1px dashed #f97373;
       background:#fff0f0;
+    }
+    .cant-btn{
+      border:1px solid #444;
+      background:#ffecec;
       font-weight:bold;
     }
 
-    .hidden{ display:none; }
-    .readonly .exercise,
-    .readonly .skip-btn,
-    .readonly .cant-btn{
-      opacity:.5;pointer-events:none;
+    .readonly{
+      opacity:.6;pointer-events:none;
     }
+    .hidden{display:none;}
 
     .status{margin:12px 0 16px;font-size:1.1rem;font-weight:600}
     .status .done{color:var(--ok)}
@@ -139,7 +150,6 @@
 <body>
   <h1>Workout</h1>
 
-  <!-- OVERALL COUNTER -->
   <div class="counter-title">Workout-Counter</div>
   <div id="overallBox" class="overall-box"></div>
 
@@ -166,97 +176,211 @@
   <script>
     const START_DATE = new Date('2025-11-12T00:00:00');
     const params = new URLSearchParams(window.location.search);
-    const view = params.get('view') || '';
+    const view = (params.get('view') || '').toLowerCase();
     const whoAmI = view === 'mann' ? 'male' : view === 'frau' ? 'female' : '';
 
     async function fetchState(){ return (await fetch("/api/state")).json(); }
 
-    const weekdays=["So","Mo","Di","Mi","Do","Fr","Sa"];
+    const weekdays = ["So","Mo","Di","Mi","Do","Fr","Sa"];
 
     function formatDate(day){
-      const d=new Date(START_DATE.getTime());
-      d.setDate(d.getDate()+(day-1));
-      return `${weekdays[d.getDay()]}, ${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`;
+      const d = new Date(START_DATE.getTime());
+      d.setDate(d.getDate() + (day - 1));
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      return `${weekdays[d.getDay()]}, ${dd}.${mm}.${yyyy}`;
     }
 
-    // SPRÜCHE
-    const nobody=[/* 20 Sprüche wie zuvor (gekürzt hier) */ 
-      "Niemand fertig. Ein Wunder, dass überhaupt jemand hier ist.",
-      "Stimmung: 0% Training, 100% Ausreden.",
-      "Alle am Leben. Niemand am Trainieren.",
-      "Der Schweinehund führt klar nach Punkten.",
-      "Niemand fertig. Dafür maximale Schonhaltung.",
-      "Hier trainiert heute nur die Geduld."
+    // Zynische Sprüche
+    const nobody = [
+      "Niemand fertig. Wenigstens sind die Ausreden gut trainiert.",
+      "Status: 0% Training, 100% Aufschieben.",
+      "Alle da, keiner fertig. Klassischer Team-Erfolg.",
+      "Heute wird anscheinend nur die Couch belastet.",
+      "Niemand fertig, aber alle mental überfordert.",
+      "Der Schweinehund hat klar gewonnen.",
+      "Mehr Aktivität im WLAN als in den Muskeln.",
+      "Niemand fertig. Aber die Hoffnung stirbt… morgen.",
+      "Trainingsstand: tief, Motivation: im Keller.",
+      "Alle warten auf den perfekten Moment. Der war vor drei Stunden.",
+      "Niemand fertig. Vielleicht war heute nur Aufwärmen für morgen.",
+      "Noch kein Häkchen, aber viel Potenzial zum Schönreden.",
+      "Niemand fertig. Das ist schon fast konsequent.",
+      "Die Stoppuhr läuft, der Puls nicht.",
+      "Niemand fertig. Aber Hauptsache, die Ausreden sind individuell.",
+      "Hier wurde heute nur die Selbsttäuschung bewegt.",
+      "Trainingslevel: Tutorial übersprungen.",
+      "Niemand fertig, aber Kalorienverbrauch beim Jammern steigt.",
+      "Niemand fertig. Vielleicht muss erst der Mond richtig stehen.",
+      "Alle tun ihr Bestes, nichts zu tun."
     ];
 
-    const maleDone=[
-      "Mann fertig, Frau auf spiritueller Trainingsreise.",
-      "Mann liefert, Frau liefert Kaffee.",
-      "Mann done, Frau dont.",
-      "Mann schwitzt, Frau sitzt.",
-      "Mann stark, Frau denkt noch nach."
-    ];
-
-    const femaleDone=[
-      "Frau fertig, Mann sucht Ausreden.",
-      "Frau liefert, Mann verwirrt.",
+    const maleDone = [
+      "Frau ist fertig, Mann sucht noch nach der perfekten Ausrede.",
+      "Frau liefert, Mann liefert Argumente.",
+      "Frau schwitzt, Mann sitzt.",
       "Frau top, Mann stopp.",
-      "Frau gewinnt, Mann spinnt.",
-      "Frau stark, Mann snackt."
+      "Frau stark, Mann snackt.",
+      "Frau durch, Mann fast – aber nur mit den Nerven.",
+      "Frau macht Wiederholungen, Mann macht Pausen.",
+      "Frau fertig, Mann studiert noch YouTube-Tutorials.",
+      "Frau rockt, Mann lockt … die Couch.",
+      "Frau im Trainingsmodus, Mann im Schonmodus.",
+      "Frau ackert, Mann analysiert.",
+      "Frau durch, Mann diskutiert mit seinem Schweinehund.",
+      "Frau kämpft, Mann denkt intensiv über Sport nach.",
+      "Frau macht Gains, Mann macht Geräusche.",
+      "Frau fertig, Mann in schwerer Verhandlung mit der Schwerkraft.",
+      "Frau liefert ab, Mann liefert nach: irgendwann.",
+      "Frau stabil, Mann fragil.",
+      "Frau motiviert, Mann verwirrt.",
+      "Frau finish, Mann fängt gleich an. Ehrlich.",
+      "Frau erledigt, Mann erledigt – aber vom Zuschauen."
     ];
 
-    let idxNobody=0, idxMale=0, idxFem=0;
+    const femaleDone = [
+      "Mann ist fertig, Frau justiert noch die Motivation.",
+      "Mann liefert, Frau liefert Kaffee.",
+      "Mann schwitzt, Frau sitzt.",
+      "Mann top, Frau stopp.",
+      "Mann stark, Frau plant.",
+      "Mann durch, Frau noch im Ladebildschirm.",
+      "Mann macht Reps, Frau macht Pläne.",
+      "Mann fertig, Frau spricht mit ihrem inneren Schweinehund.",
+      "Mann trainiert, Frau moderiert.",
+      "Mann in Bewegung, Frau in Beratung.",
+      "Mann ackert, Frau sortiert Ausreden.",
+      "Mann fertig, Frau studiert noch die Sterne.",
+      "Mann liefert, Frau überlegt, ob heute überhaupt existiert.",
+      "Mann kämpft, Frau kommentiert.",
+      "Mann done, Frau don’t – noch.",
+      "Mann stark, Frau strategisch passiv.",
+      "Mann fertig, Frau in tiefem Gespräch mit der Couch.",
+      "Mann gewinnt, Frau taktiert.",
+      "Mann ready, Frau maybe.",
+      "Mann rennt, Frau denkt."
+    ];
+
+    const praiseMale = [
+      "Mann hat schon {{total}} Reps gesammelt. Knie sind beeindruckt, Ausreden beleidigt.",
+      "Schon {{total}} Wiederholungen. Irgendwer nimmt das hier ernst.",
+      "{{total}} Reps – nicht schlecht für jemanden, der angeblich müde ist.",
+      "Mit {{total}} Reps ist der Mann offiziell nicht mehr im Anfänger-Modus.",
+      "{{total}} Wiederholungen. Langsam wird das peinlich für den inneren Schweinehund.",
+      "Mann bei {{total}} Reps. Das ist mehr als viele in einem ganzen Monat schaffen.",
+      "{{total}} Reps – offenbar kann er doch mehr als jammern.",
+      "Mit {{total}} Wiederholungen hat der Mann das Recht auf eine sehr große Mahlzeit.",
+      "{{total}} Reps. Wahrscheinlich merkt der Körper das morgen.",
+      "Mann auf {{total}} Reps. So langsam wird's ernst.",
+      "{{total}} Mal hoch, runter, irgendwas. Hauptsache erledigt.",
+      "Der Zähler steht bei {{total}}. Faul ist was anderes.",
+      "{{total}} Wiederholungen – Respekt. Und ja, du musst weitermachen.",
+      "Mann hat {{total}} Reps geballert. Die Couch vermisst ihn.",
+      "{{total}} Reps. Nicht perfekt, aber eindeutig nicht faul.",
+      "Mit {{total}} Wiederholungen wirkt die 'Ich kann nicht mehr'-Nummer eher süß.",
+      "{{total}} Reps – die Ausreden sollten langsam verstummen.",
+      "Mann auf {{total}} Reps. Noch ein bisschen, dann wird’s richtig unangenehm.",
+      "{{total}} Wiederholungen. Gut, jetzt darf er kurz jammern.",
+      "{{total}} Reps – das ist schon fast ein erwachsenes Trainingsverhalten."
+    ];
+
+    const praiseFemale = [
+      "Frau hat schon {{total}} Reps. Die Motivation gewinnt eindeutig.",
+      "{{total}} Wiederholungen – und trotzdem funktionstüchtig. Beeindruckend.",
+      "Mit {{total}} Reps ist sie offiziell die zuverlässigere Hälfte.",
+      "{{total}} Reps. Die Couch ist beleidigt, aber stolz.",
+      "Frau bei {{total}} Wiederholungen. Da kann man 'faul' offiziell streichen.",
+      "{{total}} Reps – das ist keine Spielerei mehr.",
+      "Mit {{total}} Wiederholungen hat sie dem inneren Schweinehund die Stirn geboten.",
+      "{{total}} Reps. Das Ego darf zurecht größer werden.",
+      "Frau steht bei {{total}} Reps. Stabiler als mancher Trainingsplan.",
+      "{{total}} Wiederholungen – das ist mehr Einsatz als viele in einer Woche schaffen.",
+      "Bei {{total}} Reps darf man leise an Muskelkater denken.",
+      "{{total}} Reps: Disziplinstufe 'Beeindruckend'.",
+      "Frau rockt {{total}} Wiederholungen. Der Rest der Welt scrollt.",
+      "{{total}} Reps. Wenn das so weitergeht, braucht sie bald neue Ausreden.",
+      "Mit {{total}} Wiederholungen ist sie weit jenseits von 'Ich fang morgen an'.",
+      "{{total}} Reps – das ist nicht mehr Hobby, das ist Statement.",
+      "Frau bei {{total}} Wiederholungen. Der Schweinehund weint leise.",
+      "{{total}} Reps. Wenn er mithalten will, muss er sich beeilen.",
+      "Mit {{total}} Wiederholungen ist sie offiziell im 'Kein-Witz-mehr'-Bereich.",
+      "{{total}} Reps. Dazu passt: weniger reden, mehr staunen."
+    ];
+
+    let idxNobody=0, idxMale=0, idxFem=0, idxPM=0, idxPF=0;
     function rot(arr, key){
       const i = window[key] % arr.length;
-      window[key]++; 
+      window[key]++;
       return arr[i];
     }
 
-
     function renderOverall(s){
       const box = document.getElementById("overallBox");
-      box.innerHTML="";
+      box.innerHTML = "";
 
       ["male","female"].forEach(p=>{
         const pname = p==="male" ? "Mann" : "Frau";
         const div = document.createElement("div");
-        div.className="overall-person";
+        div.className = "overall-person";
         div.textContent = pname;
         box.appendChild(div);
 
+        let total = 0;
         ["squats","situps","pushups"].forEach(ex=>{
           const row = document.createElement("div");
-          row.className="overall-row";
-          let label = ex==="squats" ? "Squats" : ex==="situps" ? "Situps" : "Push Ups";
-          row.innerHTML = `
-            <span>${label}</span>
-            <span>${s.overall[p][ex]} reps total</span>`;
+          row.className = "overall-row";
+          const label = ex==="squats" ? "Squats" : ex==="situps" ? "Situps" : "Push Ups";
+          const val = s.overall[p][ex] || 0;
+          total += val;
+          row.innerHTML = `<span>${label}</span><span>${val} reps total</span>`;
           box.appendChild(row);
         });
+
+        const praise = document.createElement("div");
+        praise.className = "text-small";
+        if (total === 0){
+          praise.textContent = "Noch keine Reps. Aktuell gewinnt die Bequemlichkeit.";
+        } else {
+          let msg;
+          if (p==="male"){
+            msg = rot(praiseMale,"idxPM");
+          } else {
+            msg = rot(praiseFemale,"idxPF");
+          }
+          praise.textContent = msg.replace("{{total}}", total);
+        }
+        box.appendChild(praise);
       });
     }
 
-
     function renderPerson(containerId, key, s){
-      const cont=document.getElementById(containerId);
-      cont.innerHTML="";
+      const cont = document.getElementById(containerId);
+      cont.innerHTML = "";
 
-      const reps=s.reps[key];
+      const reps = s.reps[key];
+      const day = s.day;
+      const skippedToday = (s.skip[key] || []).includes(day);
+      const injuredToday = (s.injured[key] || []).includes(day);
+      const cantToday = (s.cant[key] || []).includes(day);
       const canClick = (whoAmI === key);
 
       ["squats","situps","pushups"].forEach(ex=>{
-        const row=document.createElement("div");
-        row.className="exercise"+(s[key][ex]?" done":"");
+        const row = document.createElement("div");
+        let cls = "exercise";
+        if (s[key][ex]) cls += " done";
+        if (injuredToday) cls += " injured";
+        row.className = cls;
 
-        let label = ex==="squats"?"Squats":ex==="situps"?"Situps":"Push Ups";
-
-        row.innerHTML=`
+        const label = ex==="squats" ? "Squats" : ex==="situps" ? "Situps" : "Push Ups";
+        const icon = injuredToday ? "✗ " : "";
+        row.innerHTML = `
           <span>${label}</span>
-          <strong>${reps[ex]}x</strong>
+          <strong>${icon}${reps[ex]}x</strong>
         `;
 
         if (canClick){
-          row.addEventListener("click",async()=>{
+          row.addEventListener("click", async ()=>{
             await fetch("/api/toggle",{
               method:"POST",
               headers:{"Content-Type":"application/json"},
@@ -269,105 +393,49 @@
         cont.appendChild(row);
       });
 
-      // SKIP BUTTON – nur sichtbar wenn ich selbst bin ODER die Person heute geskipped hat
-      const skippedToday = s.skip[key].includes(s.day);
+      // Skip-Day: sichtbar, wenn ich selbst ODER wenn an diesem Tag geskippt wurde
       if (canClick || skippedToday){
-        const skip=document.createElement("div");
-        skip.className="skip-btn";
-        skip.textContent="Skip-Day nutzen";
-        if (!canClick) skip.classList.add("readonly");
-
-        skip.addEventListener("click",async()=>{
-          if (!canClick) return;
-          const r = await fetch("/api/skip",{
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({person:key})
+        const skip = document.createElement("div");
+        skip.className = "skip-btn" + (canClick ? "" : " readonly");
+        skip.textContent = "Skip-Day nutzen";
+        if (canClick){
+          skip.addEventListener("click", async ()=>{
+            const r = await fetch("/api/skip",{
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({person:key})
+            });
+            const data = await r.json();
+            if (data.warning) alert(data.warning);
+            loadAndRender();
           });
-          const data=await r.json();
-          if (data.warning) alert(data.warning);
-          loadAndRender();
-        });
+        }
         cont.appendChild(skip);
       }
 
-      // ICH KANN NICHT MEHR – gleiche Logik
-      if (canClick || skippedToday){
-        const cant=document.createElement("div");
-        cant.className="cant-btn";
-        cant.textContent="Ich kann nicht mehr";
-        if (!canClick) cant.classList.add("readonly");
-
-        cant.addEventListener("click",async()=>{
-          if (!canClick) return;
-          const pw=prompt("Passwort eingeben:");
-          if (!pw) return;
-          const r = await fetch("/api/reps_reduce",{
-            method:"POST",
-            headers:{"Content-Type":"application/json"},
-            body:JSON.stringify({person:key,password:pw})
+      // Verletz / Krank: sichtbar bei eigener View oder wenn heute verletzt-markiert
+      if (canClick || injuredToday){
+        const inj = document.createElement("div");
+        inj.className = "injured-btn" + (canClick ? "" : " readonly");
+        inj.textContent = "Verletzt / krank (heute)";
+        if (canClick){
+          inj.addEventListener("click", async ()=>{
+            const r = await fetch("/api/injured",{
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
+              body:JSON.stringify({person:key})
+            });
+            await r.json();
+            loadAndRender();
           });
-          if (!r.ok){
-            alert("Falsches Passwort.");
-            return;
-          }
-          loadAndRender();
-        });
-
-        cont.appendChild(cant);
+        }
+        cont.appendChild(inj);
       }
-    }
 
-
-    function updateStatus(s){
-      const m = Object.values(s.male).every(Boolean);
-      const f = Object.values(s.female).every(Boolean);
-      const out=document.getElementById("overallStatus");
-
-      if (m && f){
-        out.innerHTML="<span class='done'>Beide fertig. Stark!</span>";
-      } 
-      else if (m && !f){
-        out.innerHTML=`<span class='wait'>${rot(femaleDone,"idxFem")}</span>`;
-      }
-      else if (!m && f){
-        out.innerHTML=`<span class='wait'>${rot(maleDone,"idxMale")}</span>`;
-      }
-      else{
-        out.innerHTML=`<span class='wait'>${rot(nobody,"idxNobody")}</span>`;
-      }
-    }
-
-
-    async function loadAndRender(){
-      const s = await fetchState();
-      document.getElementById("day").textContent=s.day;
-      document.getElementById("date").textContent=formatDate(s.day);
-
-      renderOverall(s);
-
-      renderPerson("maleExercises","male",s);
-      renderPerson("femaleExercises","female",s);
-
-      const mDone=Object.values(s.male).every(Boolean);
-      const fDone=Object.values(s.female).every(Boolean);
-      const btn=document.getElementById("nextDayBtn");
-      if (mDone && fDone) btn.classList.remove("disabled");
-      else btn.classList.add("disabled");
-
-      updateStatus(s);
-    }
-
-    document.getElementById("nextDayBtn").addEventListener("click",async()=>{
-      const btn=document.getElementById("nextDayBtn");
-      if (btn.classList.contains("disabled")) return;
-      await fetch("/api/next_day",{method:"POST"});
-      loadAndRender();
-    });
-
-    loadAndRender();
-    setInterval(loadAndRender,5000);
-    document.addEventListener('visibilitychange',()=>{ if(!document.hidden) loadAndRender(); });
-  </script>
-</body>
-</html>
+      // Ich kann nicht mehr – sichtbar bei eigener View oder wenn heute genutzt
+      if (canClick || cantToday){
+        const cant = document.createElement("div");
+        cant.className = "cant-btn" + (canClick ? "" : " readonly");
+        cant.textContent = "Ich kann nicht mehr";
+        if (canClick){
+          cant.addEventListener("click", async (
