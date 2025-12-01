@@ -4,7 +4,8 @@ Kleine Flask-App für ein gemeinsames Daily-Workout (Mann/Frau), mit persistente
 
 ## Works so far in:
 - ubuntu lxc on proxmox
-- 
+
+
 ## Struktur
 
 - `app.py` – Flask-App und API
