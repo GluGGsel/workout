@@ -4,10 +4,15 @@ from threading import Lock
 
 STATE_FILE = "state.json"
 LOCK = Lock()
+
 DEFAULT_STATE = {
     "day": 1,
     "male": {"pushups": False, "situps": False, "squats": False},
     "female": {"pushups": False, "situps": False, "squats": False},
+    "reps": {
+        "male": {"pushups": 30, "situps": 30, "squats": 30},
+        "female": {"pushups": 30, "situps": 30, "squats": 30},
+    },
     "skip": {"male": [], "female": []}
 }
 
@@ -22,18 +27,35 @@ def save_state(state):
 
 
 def _ensure_schema(state):
-    # Fallbacks, falls alte state.json ohne neue Felder existiert
-    if "male" not in state:
-        state["male"] = DEFAULT_STATE["male"].copy()
-    if "female" not in state:
-        state["female"] = DEFAULTSTATE["female"].copy()
-    if "day" not in state:
+    # day
+    if "day" not in state or not isinstance(state["day"], int):
         state["day"] = 1
-    if "skip" not in state:
+
+    # male / female booleans
+    for p in ("male", "female"):
+        if p not in state or not isinstance(state[p], dict):
+            state[p] = DEFAULT_STATE[p].copy()
+        else:
+            for ex in DEFAULT_STATE[p]:
+                state[p].setdefault(ex, False)
+
+    # reps pro Person
+    if "reps" not in state or not isinstance(state["reps"], dict):
+        state["reps"] = DEFAULT_STATE["reps"]
+    else:
+        for p in ("male", "female"):
+            if p not in state["reps"]:
+                state["reps"][p] = DEFAULT_STATE["reps"][p]
+            for ex in ("pushups", "situps", "squats"):
+                state["reps"][p].setdefault(ex, 30)
+
+    # skip arrays
+    if "skip" not in state or not isinstance(state["skip"], dict):
         state["skip"] = {"male": [], "female": []}
     else:
         state["skip"].setdefault("male", [])
         state["skip"].setdefault("female", [])
+
     return state
 
 
@@ -41,12 +63,14 @@ def load_state():
     if not os.path.exists(STATE_FILE) or os.path.getsize(STATE_FILE) == 0:
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
+
     try:
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
-    except Exception:
+    except:
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
+
     return _ensure_schema(state)
 
 
@@ -64,12 +88,15 @@ def api_state():
 def api_toggle():
     data = request.json or {}
     p, e = data.get("person"), data.get("exercise")
+
     if p not in ("male", "female") or e not in ("pushups", "situps", "squats"):
         return jsonify({"error": "invalid"}), 400
+
     with LOCK:
         s = load_state()
         s[p][e] = not s[p][e]
         save_state(s)
+
     return jsonify(s)
 
 
@@ -77,41 +104,51 @@ def api_toggle():
 def api_next_day():
     with LOCK:
         s = load_state()
+
         done = lambda p: all(s[p].values())
+
         if not (done("male") and done("female")):
             return jsonify({"error": "not_completed"}), 400
+
+        # Tag +1
         s["day"] += 1
-        s["male"] = {k: False for k in s["male"]}
-        s["female"] = {k: False for k in s["female"]}
+
+        # Übungen resetten
+        for p in ("male", "female"):
+            s[p] = {k: False for k in s[p]}
+
+        # Reps steigen +1 für beide Personen
+        for p in ("male", "female"):
+            for ex in s["reps"][p]:
+                s["reps"][p][ex] = max(1, s["reps"][p][ex] + 1)
+
         save_state(s)
+
     return jsonify(s)
 
 
 @app.route("/api/skip", methods=["POST"])
 def api_skip():
     """
-    Skip-Day pro Person:
-    - setzt alle Übungen für die Person auf erledigt
-    - merkt sich den Tag in s["skip"][person]
-    - wenn innerhalb der letzten 6 Tage schon ein Skip war -> Cheater-Warnung
+    Skip-Day:
+    - setzt alle Übungen auf erledigt
+    - speichert den Tag
+    - wenn 2 Skips in 6 Tagen → Cheater-Warnung
     """
     data = request.json or {}
     p = data.get("person")
+
     if p not in ("male", "female"):
         return jsonify({"error": "invalid"}), 400
 
     with LOCK:
         s = load_state()
-        s = _ensure_schema(s)
+        current_day = s["day"]
 
-        current_day = int(s.get("day", 1))
-        skips = s["skip"].get(p, [])
+        cheating = any((current_day - d) <= 6 for d in s["skip"][p])
+        s["skip"][p].append(current_day)
 
-        cheating = any((current_day - d) <= 6 for d in skips)
-        skips.append(current_day)
-        s["skip"][p] = skips
-
-        # Alle Übungen für diese Person auf erledigt setzen
+        # Person komplett auf erledigt setzen
         for ex in s[p]:
             s[p][ex] = True
 
@@ -120,27 +157,32 @@ def api_skip():
     resp = {"state": s}
     if cheating:
         who = "Mann" if p == "male" else "Frau"
-        resp["warning"] = f"{who} versucht zu bescheißen!!! Zu viele Skip-Days in zu kurzer Zeit!!!"
+        resp["warning"] = f"{who} versucht zu bescheißen!!!"
+
     return jsonify(resp)
 
 
-@app.route("/api/reset", methods=["POST"])
-def api_reset():
+@app.route("/api/reps_reduce", methods=["POST"])
+def api_reps_reduce():
     """
-    Reset mit Passwort "reset":
-    - verringert die Anzahl der 'Übungstage' um 10 (day - 10, mindestens 1)
-    - setzt alle aktuellen Checkboxen zurück
+    Button: "Ich kann nicht mehr"
+    - Passwort: reset
+    - reduziert Reps dieser Person um 10 (min 1)
     """
     data = request.json or {}
-    if data.get("password") != "reset":
+    p = data.get("person")
+    pw = data.get("password")
+
+    if p not in ("male", "female"):
+        return jsonify({"error": "invalid"}), 400
+
+    if pw != "reset":
         return jsonify({"error": "forbidden"}), 403
 
     with LOCK:
         s = load_state()
-        day = int(s.get("day", 1))
-        s["day"] = max(1, day - 10)
-        s["male"] = {k: False for k in s["male"]}
-        s["female"] = {k: False for k in s["female"]}
+        for ex in s["reps"][p]:
+            s["reps"][p][ex] = max(1, s["reps"][p][ex] - 10)
         save_state(s)
 
     return jsonify(s)
