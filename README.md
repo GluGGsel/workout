@@ -1,39 +1,60 @@
-# Workout WebApp
+# 🏋️‍♂️ Workout Counter – Mann & Frau Edition
 
-Kleine Flask-App für ein gemeinsames Daily-Workout (Mann/Frau), mit persistentem JSON-Status.
+Eine kleine, aber brutale WebApp, um zwei Personen täglich zu tracken:
 
-## Works so far in:
-- ubuntu lxc on proxmox
+- tägliche Reps pro Person (steigen automatisch)
+- jeder klickt nur seine eigenen Häkchen an (`?view=mann` / `?view=frau`)
+- Skip-Day pro Person
+- “Ich kann nicht mehr”-Button → reduziert Reps um 10
+- witzige, zynische, dumme Sprüche zur Motivation
+- Passwortschutz (`reset`) für Rep-Reduktion
+- skalierbar, leichtgewichtig (Flask + Gunicorn)
 
+---
 
-## Struktur
+## 🚀 Features
 
-- `app.py` – Flask-App und API
-- `templates/index.html` – Frontend (Single-Page)
-- `static/` – Platzhalter für statische Assets
-- `systemd/workout.service` – Beispiel-Unit für systemd
-- `requirements.txt` – Python-Abhängigkeiten
+### ✔ Reps pro Person
+Jede Person hat:
+- Squats  
+- Situps  
+- Push Ups  
 
+Die Wiederholungszahl ist **pro Person separat** gespeichert.
 
-## Installation
+### ✔ Automatische Steigerung
+Wenn beide Personen fertig sind:
+- Reps steigen für jede Übung pro Person um **+1**
 
-Auf einem frischen Ubuntu 24.x Server:
+### ✔ Skip-Day
+- pro Person einzeln aktivierbar  
+- setzt alle Übungen dieser Person auf ✓  
+- Missbrauch wird erkannt → fette Cheater-Warnung
+
+### ✔ "Ich kann nicht mehr"-Button
+- pro Person einzeln
+- Passwortgeschützt (`reset`)
+- reduziert Reps um **10**, aber niemals unter **1**
+
+### ✔ Zynische Motivationssprüche
+- 20 Sprüche für "Niemand fertig"
+- 20 für "Mann fertig, Frau nicht"
+- 20 für "Frau fertig, Mann nicht"
+- alle rotierend, nicht zufällig (damit man alles einmal sieht)
+
+### ✔ Voll responsive (Handy-optimiert)
+Perfekt für Mann & Frau auf getrennten Smartphones.
+
+---
+
+# 📦 Installation
+
+Auf einem frischen Ubuntu 24.x:
 
 ```bash
-# 1) Git installieren
 sudo apt update
 sudo apt install -y git
-
-# 2) Repo klonen
 git clone https://github.com/GluGGsel/workout-counter.git
-
-# 3) In das Projekt wechseln
 cd workout-counter
-
-# 4) Installationsscript ausführbar machen
 sudo chmod +x install.sh
-
-# 5) Installationsscript ausführen
 sudo ./install.sh
-
-
