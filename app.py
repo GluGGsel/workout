@@ -16,6 +16,8 @@ DEFAULT_STATE = {
         "female": {"pushups": DEFAULT_REPS, "situps": DEFAULT_REPS, "squats": DEFAULT_REPS}
     },
     "skip": {"male": [], "female": []},
+    "injured": {"male": [], "female": []},
+    "cant": {"male": [], "female": []},
     "overall": {
         "male": {"pushups": 0, "situps": 0, "squats": 0},
         "female": {"pushups": 0, "situps": 0, "squats": 0}
@@ -25,10 +27,6 @@ DEFAULT_STATE = {
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
 
-# ---------------------------------------------------
-# Storage helpers
-# ---------------------------------------------------
-
 def save_state(state):
     tmp = STATE_FILE + ".tmp"
     with open(tmp, "w") as f:
@@ -37,34 +35,49 @@ def save_state(state):
 
 
 def _ensure_schema(state):
-    # Day
-    if "day" not in state: state["day"] = 1
+    # day
+    if "day" not in state or not isinstance(state["day"], int):
+        state["day"] = 1
 
-    # Male/Female fields
+    # checkbox-Status
     for p in ("male", "female"):
         if p not in state or not isinstance(state[p], dict):
             state[p] = {"pushups": False, "situps": False, "squats": False}
         for ex in ("pushups", "situps", "squats"):
             state[p].setdefault(ex, False)
 
-    # Reps
-    if "reps" not in state: state["reps"] = DEFAULT_STATE["reps"]
+    # reps
+    if "reps" not in state or not isinstance(state["reps"], dict):
+        state["reps"] = DEFAULT_STATE["reps"]
     for p in ("male", "female"):
-        if p not in state["reps"]:
+        if p not in state["reps"] or not isinstance(state["reps"][p], dict):
             state["reps"][p] = DEFAULT_STATE["reps"][p]
         for ex in ("pushups", "situps", "squats"):
             state["reps"][p].setdefault(ex, DEFAULT_REPS)
 
-    # Skip
-    if "skip" not in state: state["skip"] = {"male": [], "female": []}
+    # skip
+    if "skip" not in state or not isinstance(state["skip"], dict):
+        state["skip"] = {"male": [], "female": []}
     for p in ("male", "female"):
         state["skip"].setdefault(p, [])
 
-    # Overall counters
-    if "overall" not in state:
+    # injured
+    if "injured" not in state or not isinstance(state["injured"], dict):
+        state["injured"] = {"male": [], "female": []}
+    for p in ("male", "female"):
+        state["injured"].setdefault(p, [])
+
+    # cant (ich kann nicht mehr)
+    if "cant" not in state or not isinstance(state["cant"], dict):
+        state["cant"] = {"male": [], "female": []}
+    for p in ("male", "female"):
+        state["cant"].setdefault(p, [])
+
+    # overall
+    if "overall" not in state or not isinstance(state["overall"], dict):
         state["overall"] = DEFAULT_STATE["overall"]
     for p in ("male", "female"):
-        if p not in state["overall"]:
+        if p not in state["overall"] or not isinstance(state["overall"][p], dict):
             state["overall"][p] = {"pushups": 0, "situps": 0, "squats": 0}
         for ex in ("pushups", "situps", "squats"):
             state["overall"][p].setdefault(ex, 0)
@@ -79,15 +92,11 @@ def load_state():
     try:
         with open(STATE_FILE, "r") as f:
             state = json.load(f)
-    except:
+    except Exception:
         save_state(DEFAULT_STATE)
         return DEFAULT_STATE
     return _ensure_schema(state)
 
-
-# ---------------------------------------------------
-# Routes
-# ---------------------------------------------------
 
 @app.route("/")
 def index():
@@ -103,15 +112,12 @@ def api_state():
 def api_toggle():
     data = request.json or {}
     p, e = data.get("person"), data.get("exercise")
-
-    if p not in ("male", "female"): return jsonify({"error": "invalid"}), 400
-    if e not in ("pushups", "situps", "squats"): return jsonify({"error": "invalid"}), 400
-
+    if p not in ("male", "female") or e not in ("pushups", "situps", "squats"):
+        return jsonify({"error": "invalid"}), 400
     with LOCK:
         s = load_state()
         s[p][e] = not s[p][e]
         save_state(s)
-
     return jsonify(s)
 
 
@@ -120,31 +126,34 @@ def api_next_day():
     with LOCK:
         s = load_state()
 
-        done = lambda p: all(s[p].values())
+        def done(person):
+            return all(s[person].values())
+
         if not (done("male") and done("female")):
             return jsonify({"error": "not_completed"}), 400
 
-        # Add to overall counters BEFORE reset (only non-skip)
+        day = s["day"]
+
+        # Overall-Counter: nur wenn NICHT Skip und NICHT injured
         for p in ("male", "female"):
-            if s["day"] not in s["skip"][p]:
+            if (day not in s["skip"][p]) and (day not in s["injured"][p]):
                 for ex in ("pushups", "situps", "squats"):
-                    if s[p][ex] is True:  # completed today
+                    if s[p][ex]:
                         s["overall"][p][ex] += s["reps"][p][ex]
 
-        # Next day
+        # nächster Tag
         s["day"] += 1
 
-        # Reset checkboxes
-        s["male"] = {k: False for k in s["male"]}
-        s["female"] = {k: False for k in s["female"]}
+        # Checkboxes resetten
+        for p in ("male", "female"):
+            s[p] = {k: False for k in s[p]}
 
-        # Reps +1
+        # Reps +1 für beide Personen / alle Übungen
         for p in ("male", "female"):
             for ex in ("pushups", "situps", "squats"):
                 s["reps"][p][ex] = max(1, s["reps"][p][ex] + 1)
 
         save_state(s)
-
     return jsonify(s)
 
 
@@ -152,7 +161,6 @@ def api_next_day():
 def api_skip():
     data = request.json or {}
     p = data.get("person")
-
     if p not in ("male", "female"):
         return jsonify({"error": "invalid"}), 400
 
@@ -161,9 +169,9 @@ def api_skip():
         day = s["day"]
 
         cheating = any((day - d) <= 6 for d in s["skip"][p])
-        s["skip"][p].append(day)
+        if day not in s["skip"][p]:
+            s["skip"][p].append(day)
 
-        # skip completes the exercises
         for ex in ("pushups", "situps", "squats"):
             s[p][ex] = True
 
@@ -173,29 +181,44 @@ def api_skip():
     if cheating:
         who = "Mann" if p == "male" else "Frau"
         resp["warning"] = f"{who} versucht zu bescheißen!!!"
-
     return jsonify(resp)
+
+
+@app.route("/api/injured", methods=["POST"])
+def api_injured():
+    data = request.json or {}
+    p = data.get("person")
+    if p not in ("male", "female"):
+        return jsonify({"error": "invalid"}), 400
+
+    with LOCK:
+        s = load_state()
+        day = s["day"]
+        if day not in s["injured"][p]:
+            s["injured"][p].append(day)
+        for ex in ("pushups", "situps", "squats"):
+            s[p][ex] = True
+        save_state(s)
+    return jsonify(s)
 
 
 @app.route("/api/reps_reduce", methods=["POST"])
 def api_reps_reduce():
     data = request.json or {}
     p, pw = data.get("person"), data.get("password")
-
     if p not in ("male", "female"):
         return jsonify({"error": "invalid"}), 400
-
     if pw != "reset":
         return jsonify({"error": "forbidden"}), 403
 
     with LOCK:
         s = load_state()
-
+        day = s["day"]
+        if day not in s["cant"][p]:
+            s["cant"][p].append(day)
         for ex in ("pushups", "situps", "squats"):
             s["reps"][p][ex] = max(1, s["reps"][p][ex] - 10)
-
         save_state(s)
-
     return jsonify(s)
 
 
