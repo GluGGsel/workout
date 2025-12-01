@@ -11,28 +11,89 @@
       --ok:#16a34a; --muted:#666;
     }
     html,body{height:100%}
-    body{font-family:Arial,Helvetica,sans-serif;padding:24px;background:#fafafa;color:#111;-webkit-text-size-adjust:100%}
+    body{
+      font-family:Arial,Helvetica,sans-serif;
+      padding:24px;
+      background:#fafafa;
+      color:#111;
+      -webkit-text-size-adjust:100%
+    }
     h1{margin:0 0 6px}
     .muted{color:var(--muted);font-size:0.95em;margin:4px 0 16px}
+    .date-line{
+      font-size:1.4rem;
+      font-weight:700;
+      margin:4px 0 8px;
+    }
     .container{display:flex;gap:20px;flex-wrap:wrap}
-    .panel{border:2px solid #ddd;border-radius:12px;padding:18px;width:340px;background:white;
-      transition:box-shadow .15s ease, border-color .15s ease, background .15s ease}
+    .panel{
+      border:2px solid #ddd;
+      border-radius:12px;
+      padding:18px;
+      width:340px;
+      background:white;
+      transition:box-shadow .15s ease, border-color .15s ease, background .15s ease
+    }
     .panel.male{background:var(--male-bg);border-color:var(--male-border)}
     .panel.female{background:var(--female-bg);border-color:var(--female-border)}
     .panel h2{margin:0 0 10px;font-size:1.4rem}
-    .exercise{display:flex;align-items:center;gap:14px;margin:12px 0;padding:12px 10px;cursor:pointer;user-select:none;
-      -webkit-tap-highlight-color:transparent;touch-action:manipulation;border-radius:10px}
+    .exercise{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      margin:12px 0;
+      padding:12px 10px;
+      cursor:pointer;
+      user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+      border-radius:10px
+    }
+    .exercise.skip{
+      border:1px dashed #bbb;
+      font-style:italic;
+      font-size:0.95rem;
+    }
     .readonly .exercise{opacity:.6;pointer-events:none}
     .exercise input[type="checkbox"]{display:none}
     .check{font-weight:bold;color:var(--ok);font-size:36px;line-height:1}
-    .chip{display:inline-block;padding:6px 10px;border-radius:999px;font-size:.95rem;font-weight:600}
-    .chip.male{background:rgba(44,108,255,.12);color:var(--male-accent);border:1px solid var(--male-border)}
-    .chip.female{background:rgba(227,54,130,.12);color:var(--female-accent);border:1px solid var(--female-border)}
+    .chip{
+      display:inline-block;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:.95rem;
+      font-weight:600
+    }
+    .chip.male{
+      background:rgba(44,108,255,.12);
+      color:var(--male-accent);
+      border:1px solid var(--male-border)
+    }
+    .chip.female{
+      background:rgba(227,54,130,.12);
+      color:var(--female-accent);
+      border:1px solid var(--female-border)
+    }
     .status{margin:10px 0 16px;font-size:.95rem}
     .status .done{color:var(--ok);font-weight:700}
     .status .wait{color:#b45309;font-weight:700}
-    button{padding:12px 16px;border-radius:12px;border:1px solid #ccc;background:#fff;cursor:pointer;
-      font-size:1rem;min-height:48px;touch-action:manipulation}
+    .warning{color:#b91c1c;font-weight:700;margin-top:4px}
+    .actions{
+      margin-top:18px;
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+    button{
+      padding:12px 16px;
+      border-radius:12px;
+      border:1px solid #ccc;
+      background:#fff;
+      cursor:pointer;
+      font-size:1rem;
+      min-height:48px;
+      touch-action:manipulation
+    }
     .disabled{opacity:.5;pointer-events:none}
     @media(max-width:768px){
       body{padding:18px;font-size:18px;line-height:1.35}
@@ -42,14 +103,17 @@
       .exercise{padding:14px 12px;font-size:1.15rem}
       .check{font-size:42px}
       .muted{font-size:1rem}
-      button{width:100%;font-size:1.1rem}
+      .date-line{font-size:1.6rem}
+      button{font-size:1.1rem}
+      .actions{flex-direction:column}
+      .actions button{width:100%}
     }
   </style>
 </head>
 <body>
   <h1>Workout</h1>
-  <div class="muted">Datum: <span id="date">–</span></div>
-  <div>Aktueller Tag: <span id="day">1</span></div>
+  <div class="date-line">Heute: <span id="date">–</span></div>
+  <div class="muted">Aktueller Tag: <span id="day">1</span></div>
   <div id="overallStatus" class="status"></div>
 
   <div class="container">
@@ -63,8 +127,9 @@
     </div>
   </div>
 
-  <div style="margin-top:18px">
+  <div class="actions">
     <button id="nextDayBtn" class="disabled">Nächster Tag</button>
+    <button id="resetBtn">Reset (-10 Workouts)</button>
   </div>
 
   <script>
@@ -81,13 +146,97 @@
       { key:"pushups", label:"Push Ups" }
     ];
 
+    const weekdays = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+
     function formatDateForDay(day){
       const d = new Date(START_DATE.getTime());
       d.setDate(d.getDate() + (day - 1));
       const dd = String(d.getDate()).padStart(2,'0');
       const mm = String(d.getMonth()+1).padStart(2,'0');
       const yyyy = d.getFullYear();
-      return `${dd}.${mm}.${yyyy}`;
+      const wd = weekdays[d.getDay()];
+      return `${wd}, ${dd}.${mm}.${yyyy}`;
+    }
+
+    // Zynische Sprüche
+    const nobodyMessages = [
+      "Niemand ist fertig. Aber hey, der Wille, nichts zu tun, ist beeindruckend konstant.",
+      "Status: 0% Training, 100% Prokrastination.",
+      "Noch niemand fertig. Offenbar ist Aufwärmen der Ausreden wichtiger als Aufwärmen der Muskeln.",
+      "Niemand durch. Aber die Motivation liegt schon mal bequem auf dem Sofa.",
+      "Trainingsstand: Alle tun so, als wäre morgiger Muskelkater ein Menschenrecht.",
+      "Niemand fertig. Dafür sind die 'Ich fange morgen an'-Pläne maximal definiert.",
+      "Noch null Häkchen, aber die Snack-Pipeline läuft stabil.",
+      "Niemand fertig. Könnte daran liegen, dass niemand angefangen hat.",
+      "Training: 0. Scrollen: 1. Unentschieden für heute.",
+      "Niemand ist fertig. Der innere Schweinehund gewinnt 1:0.",
+      "Alle warten auf den perfekten Moment. Spoiler: Der kommt nicht.",
+      "Niemand fertig. Aber die Ausrede, warum, ist sicher sehr komplex.",
+      "Workout-Status: Warteschleife. Ausreden-Status: Überlastet.",
+      "Niemand fertig. Vielleicht hilft es, die Sportsachen erst mal nur anzuschauen.",
+      "Noch keine Wiederholung erledigt, aber schon mental völlig erschöpft.",
+      "Niemand fertig. Vielleicht ist das ja ein Konzept-Workout: Nur denken, nicht machen.",
+      "Status: Niemand fertig. Das Workout ist anscheinend im Energiesparmodus.",
+      "Niemand durch. Immerhin werden Kalorien beim Augenrollen auch nicht verbrannt.",
+      "Alle sind noch dran, 'sich innerlich vorzubereiten'. Seit Stunden.",
+      "Niemand fertig. Aber Hauptsache, die Uhr wurde schon dreimal angeklagt."
+    ];
+
+    const maleDoneMessages = [
+      "Mann ist fertig, Frau überlegt noch, ob heute wirklich heute ist.",
+      "Mann durch, Frau verhandelt noch mit ihrer Motivation.",
+      "Mann fertig, Frau checkt noch, ob ihr Sternzeichen Sport erlaubt.",
+      "Mann hat geliefert, Frau optimiert noch die Start-Ausrede.",
+      "Mann fertig, Frau sucht noch die perfekte Playlist, um nicht anzufangen.",
+      "Mann ist durch, Frau testet das Konzept 'mentales Training'.",
+      "Mann fertig, Frau ist noch in der Phase 'gleich geht’s los… irgendwann'.",
+      "Mann hat trainiert, Frau trainiert noch ihre Prokrastination.",
+      "Mann ist fertig, Frau prüft noch, ob die Matte wirklich bequem genug ist.",
+      "Mann durch, Frau hält noch eine Vollversammlung mit ihrem inneren Schweinehund.",
+      "Mann fertig, Frau befindet sich im Beta-Test der Ausreden.",
+      "Mann ist durch, Frau sucht noch nach dem optimalen Startzeitpunkt irgendwo zwischen 'später' und 'nie'.",
+      "Mann fertig, Frau fragt sich, ob Anfangen nicht überbewertet ist.",
+      "Mann hat die Wiederholungen, Frau hat die Argumente.",
+      "Mann fertig, Frau wärmt noch auf – allerdings nur die Couch.",
+      "Mann durch, Frau ist im Expertenmodus 'ich fang morgen an'.",
+      "Mann fertig, Frau analysiert noch die Schwerkraft.",
+      "Mann hat's erledigt, Frau debuggt noch ihre Selbstdisziplin.",
+      "Mann fertig, Frau im Ruhemodus mit gelegentlichem Seufzen.",
+      "Mann durch, Frau wartet noch auf ein göttliches Zeichen zum Start."
+    ];
+
+    const femaleDoneMessages = [
+      "Frau ist fertig, Mann sucht noch die optimalen Rahmenbedingungen für Ausreden.",
+      "Frau durch, Mann prüft, ob man von Zuschauen Muskelkater bekommen kann.",
+      "Frau fertig, Mann denkt intensiv über Sport nach – seit einer Stunde.",
+      "Frau hat abgeliefert, Mann ist noch im Konferenzmodus mit seinem inneren Schweinehund.",
+      "Frau fertig, Mann optimiert noch den Winkel seines Sofas.",
+      "Frau ist durch, Mann macht gerade eine sehr lange mentale Vorbereitung.",
+      "Frau fertig, Mann versucht, den Trainingsbeginn an eine kosmische Konstellation zu koppeln.",
+      "Frau hat trainiert, Mann trainiert noch seine Ausreden.",
+      "Frau fertig, Mann testet das Konzept 'ich feuere innerlich an, das reicht doch'.",
+      "Frau ist durch, Mann checkt noch, ob sein T-Shirt überhaupt sporttauglich ist.",
+      "Frau fertig, Mann führt eine Risikoanalyse zu Liegestützen durch.",
+      "Frau hat's erledigt, Mann schont sicherheitshalber schon mal seine zukünftigen Muskeln.",
+      "Frau fertig, Mann erzählt gleich, wie heftig er eigentlich schon gelitten hat – innerlich.",
+      "Frau durch, Mann sammelt erst noch Kraft für das Öffnen der Wasserflasche.",
+      "Frau fertig, Mann kalibriert noch sein Motivation-Level auf 'vielleicht morgen'.",
+      "Frau ist fertig, Mann studiert noch die Bewegungsabläufe in Zeitlupe (YouTube).",
+      "Frau fertig, Mann ist im Modus 'ich wollte ja, aber…'.",
+      "Frau hat trainiert, Mann versucht noch, den Begriff 'leichtes Aufwärmen' zu überinterpretieren.",
+      "Frau fertig, Mann führt noch eine Nutzwertanalyse zwischen Sofa und Squats durch.",
+      "Frau durch, Mann startet jeden Moment. Wirklich. Bestimmt. Vielleicht."
+    ];
+
+    let nobodyIndex = 0;
+    let maleDoneIndex = 0;
+    let femaleDoneIndex = 0;
+
+    function nextMessage(arr, idxName){
+      const idx = window[idxName] || 0;
+      const msg = arr[idx % arr.length];
+      window[idxName] = idx + 1;
+      return msg;
     }
 
     function renderPerson(containerId, personKey, day, checks, readOnly){
@@ -100,35 +249,71 @@
         const row = document.createElement("div");
         row.className = "exercise";
         const cb = document.createElement("input");
-        cb.type = "checkbox"; cb.checked = !!checks[e.key]; cb.style.display = "none";
+        cb.type = "checkbox";
+        cb.checked = !!checks[e.key];
+        cb.style.display = "none";
         const label = document.createElement("span");
-        if (cb.checked){ label.className="check"; label.textContent="✓"; }
-        else { label.textContent = `${day} ${e.label}`; }
+        if (cb.checked){
+          label.className="check";
+          label.textContent="✓";
+        } else {
+          label.textContent = `${day} ${e.label}`;
+        }
 
         if (!readOnly){
           row.addEventListener("click", async ()=>{
             await fetch("/api/toggle", {
-              method:"POST", headers:{"Content-Type":"application/json"},
+              method:"POST",
+              headers:{"Content-Type":"application/json"},
               body:JSON.stringify({ person:personKey, exercise:e.key })
             });
             loadAndRender();
           }, {passive:true});
         }
-        row.appendChild(cb); row.appendChild(label); cont.appendChild(row);
+        row.appendChild(cb);
+        row.appendChild(label);
+        cont.appendChild(row);
       });
+
+      // Skip-Day Row
+      if (!readOnly){
+        const skipRow = document.createElement("div");
+        skipRow.className = "exercise skip";
+        skipRow.textContent = `Tag ${day}: Skip-Day nutzen (gilt als erledigt)`;
+        skipRow.addEventListener("click", async ()=>{
+          const r = await fetch("/api/skip", {
+            method:"POST",
+            headers:{"Content-Type":"application/json"},
+            body:JSON.stringify({ person:personKey })
+          });
+          const data = await r.json();
+          if (data.warning){
+            alert(data.warning);
+          }
+          await loadAndRender();
+        }, {passive:true});
+        cont.appendChild(skipRow);
+      }
     }
 
     function updateStatus(s){
       const maleDone = Object.values(s.male).every(Boolean);
       const femaleDone = Object.values(s.female).every(Boolean);
       const st = document.getElementById("overallStatus");
-      if (maleDone && femaleDone)
-        st.innerHTML = '<span class="done">Beide fertig.</span> Weiter geht’s morgen.';
-      else if (maleDone && !femaleDone)
-        st.innerHTML = '<span class="done">Mann ist fertig</span> — <span class="wait">Frau zögert noch.</span>';
-      else if (!maleDone && femaleDone)
-        st.innerHTML = '<span class="done">Frau ist fertig</span> — <span class="wait">Mann zögert noch.</span>';
-      else st.textContent = 'Niemand fertig. Alle tun so, als wäre Stretching schon Training.';
+      st.innerHTML = "";
+
+      if (maleDone && femaleDone){
+        st.innerHTML = '<span class="done">Beide fertig. Weiter geht’s morgen. So sieht Disziplin aus.</span>';
+      } else if (maleDone && !femaleDone){
+        const msg = nextMessage(maleDoneMessages, 'maleDoneIndex');
+        st.innerHTML = `<span class="done">${msg}</span>`;
+      } else if (!maleDone && femaleDone){
+        const msg = nextMessage(femaleDoneMessages, 'femaleDoneIndex');
+        st.innerHTML = `<span class="done">${msg}</span>`;
+      } else {
+        const msg = nextMessage(nobodyMessages, 'nobodyIndex');
+        st.innerHTML = `<span class="wait">${msg}</span>`;
+      }
     }
 
     async function loadAndRender(){
@@ -136,15 +321,19 @@
       document.getElementById("day").textContent = s.day;
       const dateEl = document.getElementById("date");
       if (dateEl) dateEl.textContent = formatDateForDay(s.day);
+
       const maleRO = clickableFor && clickableFor!=='male';
       const femaleRO = clickableFor && clickableFor!=='female';
+
       renderPerson("maleExercises","male",s.day,s.male,maleRO);
       renderPerson("femaleExercises","female",s.day,s.female,femaleRO);
+
       const maleDone = Object.values(s.male).every(Boolean);
       const femaleDone = Object.values(s.female).every(Boolean);
       const btn = document.getElementById("nextDayBtn");
       if (maleDone && femaleDone) btn.classList.remove("disabled");
       else btn.classList.add("disabled");
+
       updateStatus(s);
     }
 
@@ -152,7 +341,23 @@
       const btn = document.getElementById("nextDayBtn");
       if (btn.classList.contains("disabled")) return;
       const r = await fetch("/api/next_day",{method:"POST"});
-      if (r.ok) await loadAndRender(); else alert("Nicht abgeschlossen!");
+      if (r.ok) await loadAndRender();
+      else alert("Noch nicht alle fertig – schön versuchen zu schummeln, was?");
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", async ()=>{
+      const pwd = prompt("Passwort für Reset eingeben (Achtung: zählt 10 Workouts zurück):");
+      if (!pwd) return;
+      const r = await fetch("/api/reset",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({password:pwd})
+      });
+      if (!r.ok){
+        alert("Falsches Passwort oder Fehler beim Reset. Nett versucht.");
+        return;
+      }
+      await loadAndRender();
     });
 
     loadAndRender();
