@@ -10,10 +10,6 @@ Kleine Flask-App für ein gemeinsames Daily-Workout (Mann/Frau), mit persistente
 - `systemd/workout.service` – Beispiel-Unit für systemd
 - `requirements.txt` – Python-Abhängigkeiten
 
-Die Applogik und das HTML/CSS/JS entsprechen 1:1 deiner funktionierenden Version.
-
-
-
 
 # To install:
 
