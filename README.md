@@ -1,6 +1,6 @@
 To install:
 
-git clone https://github.com/GluGGsel/workout-counter.git
-cd workout-counter
-chmod +x install.sh
-./install.sh
+git clone https://github.com/GluGGsel/workout-app.git
+cd workout-app
+sudo chmod +x install.sh
+sudo ./install.sh
