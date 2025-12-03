@@ -480,23 +480,21 @@
       "{{total}} Reps. Man könnte fast meinen, sie meint es ernst. Weil sie es tut."
     ];
 
-    const rotIndex = {
+    // feste Offsets pro Kategorie, damit nicht alle am gleichen Tag denselben Index haben
+    const phraseOffsets = {
       nobody: 0,
-      maleDone: 0,
-      femaleDone: 0,
-      praiseMale: 0,
-      praiseFemale: 0
+      maleDone: 7,
+      femaleDone: 13,
+      praiseMale: 3,
+      praiseFemale: 11
     };
 
-    function rotate(arr, key){
+    // 1 Spruch pro Kategorie pro Tag (deterministisch)
+    function pickPhrase(arr, key, day){
       if (!Array.isArray(arr) || arr.length === 0) return "";
-      if (!Object.prototype.hasOwnProperty.call(rotIndex, key) || typeof rotIndex[key] !== "number") {
-        rotIndex[key] = 0;
-      }
-      const idx = rotIndex[key] % arr.length;
-      const value = arr[idx] ?? "";
-      rotIndex[key] = (rotIndex[key] + 1) % arr.length;
-      return value;
+      const offset = phraseOffsets[key] || 0;
+      const idx = ((day || 1) + offset) % arr.length;
+      return arr[idx] || "";
     }
 
     // ================== LOGIK ==================
@@ -533,8 +531,8 @@
           praise.textContent = "Noch keine Reps. Aktuell gewinnt die Bequemlichkeit.";
         } else {
           const raw = p==="male"
-            ? rotate(praiseMale,"praiseMale")
-            : rotate(praiseFemale,"praiseFemale");
+            ? pickPhrase(praiseMale,"praiseMale",s.day)
+            : pickPhrase(praiseFemale,"praiseFemale",s.day);
           const msg = (raw || "Stabil durchgezogen. Weiter so.").replace("{{total}}", total);
           praise.textContent = msg;
         }
@@ -646,17 +644,18 @@
       const mDone = s.male && Object.values(s.male).every(Boolean);
       const fDone = s.female && Object.values(s.female).every(Boolean);
       const out = document.getElementById("overallStatus");
+      const day = s.day || 1;
 
       if (mDone && fDone){
         out.innerHTML = "<span class='done'>Beide fertig. So sieht Disziplin aus.</span>";
       } else if (mDone && !fDone){
-        const line = rotate(femaleDone,"femaleDone") || "Mann fertig, Frau im Kreativmodus.";
+        const line = pickPhrase(femaleDone,"femaleDone",day) || "Mann fertig, Frau im Kreativmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else if (!mDone && fDone){
-        const line = rotate(maleDone,"maleDone") || "Frau fertig, Mann im Energiesparmodus.";
+        const line = pickPhrase(maleDone,"maleDone",day) || "Frau fertig, Mann im Energiesparmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else {
-        const line = rotate(nobody,"nobody") || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
+        const line = pickPhrase(nobody,"nobody",day) || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       }
     }
