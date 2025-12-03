@@ -480,7 +480,7 @@
       "{{total}} Reps. Man könnte fast meinen, sie meint es ernst. Weil sie es tut."
     ];
 
-    // feste Offsets pro Kategorie, damit nicht alle am gleichen Tag denselben Index haben
+    // feste Offsets pro Kategorie
     const phraseOffsets = {
       nobody: 0,
       maleDone: 7,
@@ -489,7 +489,6 @@
       praiseFemale: 11
     };
 
-    // 1 Spruch pro Kategorie pro Tag (deterministisch)
     function pickPhrase(arr, key, day){
       if (!Array.isArray(arr) || arr.length === 0) return "";
       const offset = phraseOffsets[key] || 0;
@@ -497,11 +496,35 @@
       return arr[idx] || "";
     }
 
+    // ===== Sprüche-Cache: genau 1x pro Tag berechnen =====
+    const phraseCache = {
+      day: null,
+      nobody: "",
+      maleDone: "",
+      femaleDone: "",
+      praiseMale: "",
+      praiseFemale: ""
+    };
+
+    function ensurePhraseCache(day){
+      if (!day) day = 1;
+      if (phraseCache.day === day) return;
+
+      phraseCache.day = day;
+      phraseCache.nobody      = pickPhrase(nobody,     "nobody",     day);
+      phraseCache.maleDone    = pickPhrase(maleDone,   "maleDone",   day);
+      phraseCache.femaleDone  = pickPhrase(femaleDone, "femaleDone", day);
+      phraseCache.praiseMale  = pickPhrase(praiseMale, "praiseMale", day);
+      phraseCache.praiseFemale= pickPhrase(praiseFemale,"praiseFemale",day);
+    }
+
     // ================== LOGIK ==================
 
     function renderOverall(s){
       const box = document.getElementById("overallBox");
       box.innerHTML = "";
+
+      ensurePhraseCache(s.day);
 
       ["male","female"].forEach(p=>{
         const pname = p==="male" ? "Mann" : "Frau";
@@ -530,10 +553,9 @@
         if (total === 0){
           praise.textContent = "Noch keine Reps. Aktuell gewinnt die Bequemlichkeit.";
         } else {
-          const raw = p==="male"
-            ? pickPhrase(praiseMale,"praiseMale",s.day)
-            : pickPhrase(praiseFemale,"praiseFemale",s.day);
-          const msg = (raw || "Stabil durchgezogen. Weiter so.").replace("{{total}}", total);
+          let raw = p==="male" ? phraseCache.praiseMale : phraseCache.praiseFemale;
+          if (!raw) raw = "Stabil durchgezogen. Weiter so.";
+          const msg = raw.replace("{{total}}", total);
           praise.textContent = msg;
         }
         block.appendChild(praise);
@@ -646,16 +668,18 @@
       const out = document.getElementById("overallStatus");
       const day = s.day || 1;
 
+      ensurePhraseCache(day);
+
       if (mDone && fDone){
         out.innerHTML = "<span class='done'>Beide fertig. So sieht Disziplin aus.</span>";
       } else if (mDone && !fDone){
-        const line = pickPhrase(femaleDone,"femaleDone",day) || "Mann fertig, Frau im Kreativmodus.";
+        const line = phraseCache.femaleDone || "Mann fertig, Frau im Kreativmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else if (!mDone && fDone){
-        const line = pickPhrase(maleDone,"maleDone",day) || "Frau fertig, Mann im Energiesparmodus.";
+        const line = phraseCache.maleDone || "Frau fertig, Mann im Energiesparmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else {
-        const line = pickPhrase(nobody,"nobody",day) || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
+        const line = phraseCache.nobody || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       }
     }
@@ -666,6 +690,7 @@
         document.getElementById("day").textContent = s.day;
         document.getElementById("date").textContent = formatDate(s.day);
 
+        ensurePhraseCache(s.day);
         renderOverall(s);
         renderPerson("maleExercises","male",s);
         renderPerson("femaleExercises","female",s);
