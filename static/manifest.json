@@ -3,8 +3,8 @@
   "short_name": "Workout",
   "start_url": "/?view=mann",
   "display": "standalone",
-  "background_color": "#fafafa",
-  "theme_color": "#fafafa",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "icons": [
     {
       "src": "/static/icons/icon-192.png",
