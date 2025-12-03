@@ -36,10 +36,16 @@ systemctl enable --now workout.service
 sleep 1
 curl -s http://127.0.0.1:8000/api/state || true
 
+# IP des LXC ermitteln
+IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
+if [ -z "$IP" ]; then
+  IP="<SERVER-IP>"
+fi
+
 echo ""
 echo "==========================================="
 echo "Installation abgeschlossen!"
 echo "App erreichbar unter:"
-echo "   http://<SERVER-IP>:8000/?view=mann"
-echo "   http://<SERVER-IP>:8000/?view=frau"
+echo "   http://$IP:8000/?view=mann"
+echo "   http://$IP:8000/?view=frau"
 echo "==========================================="
