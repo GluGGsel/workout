@@ -28,13 +28,23 @@ def load_phrases():
                 "Niemand fertig. Heute gewinnt die Couch.",
                 "Zero Aktivität. Beeindruckend konsequent."
             ],
-            "one_done": [
-                "Einer fertig, einer im Tiefschlaf.",
-                "50% Leistung, 100% Potential."
+            "one_done_male": [
+                "Mann ist schon fertig, Frau noch nicht.",
+                "Mann schwitzt, Frau überlegt noch."
+            ],
+            "one_done_female": [
+                "Frau ist schon fertig, Mann noch nicht.",
+                "Frau liefert, Mann philosophiert noch."
             ],
             "both_done": [
                 "Beide fertig! Muskelkater bestellt.",
                 "100% erledigt. Respekt."
+            ],
+            "skip_abuse": [
+                "Skip-Day – deine Ausreden machen heute Überstunden."
+            ],
+            "injured_day": [
+                "Verletzt/krank markiert. Dein Sofa gratuliert ganz herzlich."
             ]
         }
     with open(PHRASES_FILE, "r", encoding="utf-8") as f:
@@ -170,11 +180,10 @@ def compute_done_flags(state):
 def compute_phrase(state):
     """
     Wählt pro Tag + Kategorie genau einen Spruch aus PHRASES.
-    Kategorien:
-      - injured_day (wenn jemand verletzt markiert ist)
-      - skip_abuse (wenn jemand skip benutzt)
-      - both_done / one_done / none_done (Standardzustände)
-    Prio: injured_day > skip_abuse > normal.
+    Priorität:
+      1) injured_day (wenn mind. eine Person verletzt/krank)
+      2) skip_abuse (wenn mind. eine Person skip nutzt)
+      3) both_done / one_done_male / one_done_female / none_done
     """
     try:
         day_date = date.fromisoformat(state.get("date", START_DATE.isoformat()))
@@ -195,7 +204,7 @@ def compute_phrase(state):
     skip_today = any(day in state["skip"].get(p, []) for p in PERSONS)
     injured_today = any(day in state["injured"].get(p, []) for p in PERSONS)
 
-    # Kategorie bestimmen (Priorität)
+    # Kategorie wählen
     if injured_today and "injured_day" in PHRASES:
         cat = "injured_day"
     elif skip_today and "skip_abuse" in PHRASES:
@@ -203,41 +212,52 @@ def compute_phrase(state):
     else:
         if male_done and female_done:
             cat = "both_done"
-        elif male_done or female_done:
-            cat = "one_done"
+        elif male_done and not female_done:
+            cat = "one_done_male"
+        elif female_done and not male_done:
+            cat = "one_done_female"
         else:
             cat = "none_done"
 
-    # Falls wir skip/injured wollen, aber keine Sprüche vorhanden: fallback auf normalen Status
+    # Falls skip/injured gewünscht, aber keine Sprüche vorhanden → zurück auf Normal-Kategorien
     candidates = PHRASES.get(cat) or []
     if not candidates and cat in ("injured_day", "skip_abuse"):
         if male_done and female_done:
             cat = "both_done"
-        elif male_done or female_done:
-            cat = "one_done"
+        elif male_done and not female_done:
+            cat = "one_done_male"
+        elif female_done and not male_done:
+            cat = "one_done_female"
         else:
             cat = "none_done"
         candidates = PHRASES.get(cat) or []
 
-    # Wenn schon an diesem Tag + Kategorie ein Spruch gewählt wurde → wiederverwenden
+    # Bereits gewählten Spruch für diesen Tag & Kategorie wiederverwenden
     if cat in day_block:
         return day_block[cat]
 
-    # Keine passenden Sprüche? Fallback-Text
+    # Wenn keine Sprüche vorhanden sind → sinnvolle Default-Sätze
     if not candidates:
-        fallback = {
-            "none_done": "Niemand fertig. Heute gewinnt die Couch.",
-            "one_done": "Eine Seite ist fertig, die andere spielt noch Statue.",
-            "both_done": "Beide fertig. Ich bin verblüfft.",
-            "skip_abuse": "Skip-Day – deine Ausreden machen heute Überstunden.",
-            "injured_day": "Verletzt/krank markiert. Dein Sofa gratuliert ganz herzlich."
-        }
-        phrase = fallback.get(cat, "Status undefiniert, aber ganz sicher nicht beeindruckend.")
+        if cat == "none_done":
+            phrase = "Niemand ist fertig. Motivation hat heute frei."
+        elif cat == "one_done_male":
+            phrase = "Mann ist schon fertig, Frau noch nicht."
+        elif cat == "one_done_female":
+            phrase = "Frau ist schon fertig, Mann noch nicht."
+        elif cat == "both_done":
+            phrase = "Mann und Frau sind beide fertig. Stark gemacht!"
+        elif cat == "skip_abuse":
+            phrase = "Skip-Day – deine Ausreden machen heute Überstunden."
+        elif cat == "injured_day":
+            phrase = "Verletzt/krank markiert. Dein Sofa gratuliert ganz herzlich."
+        else:
+            phrase = "Status undefiniert, aber ganz sicher nicht beeindruckend."
     else:
         multipliers = {
             "none_done": 3,
-            "one_done": 7,
-            "both_done": 11,
+            "one_done_male": 7,
+            "one_done_female": 11,
+            "both_done": 13,
             "skip_abuse": 5,
             "injured_day": 9
         }
