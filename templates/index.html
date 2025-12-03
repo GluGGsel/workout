@@ -464,16 +464,23 @@
       "{{total}} Reps. Man könnte fast meinen, sie meint es ernst. Weil sie es tut."
     ];
 
-    // ================== LOGIK ==================
-
-    let idxNobody = 0, idxMale = 0, idxFem = 0, idxPM = 0, idxPF = 0;
+    // ================== ROTATION-STATE ==================
+    const rotIndex = {
+      nobody: 0,
+      maleDone: 0,
+      femaleDone: 0,
+      praiseMale: 0,
+      praiseFemale: 0
+    };
 
     function rotate(arr, key){
       if (!Array.isArray(arr) || arr.length === 0) return "";
-      const i = window[key] % arr.length;
-      window[key] = (window[key] + 1) % arr.length;
+      const i = rotIndex[key] % arr.length;
+      rotIndex[key] = (rotIndex[key] + 1) % arr.length;
       return arr[i];
     }
+
+    // ================== LOGIK ==================
 
     function renderOverall(s){
       const box = document.getElementById("overallBox");
@@ -502,7 +509,7 @@
         if (total === 0){
           praise.textContent = "Noch keine Reps. Aktuell gewinnt die Bequemlichkeit.";
         } else {
-          let msg = p==="male" ? rotate(praiseMale,"idxPM") : rotate(praiseFemale,"idxPF");
+          let msg = p==="male" ? rotate(praiseMale,"praiseMale") : rotate(praiseFemale,"praiseFemale");
           praise.textContent = msg.replace("{{total}}", total);
         }
         box.appendChild(praise);
@@ -618,11 +625,11 @@
       if (mDone && fDone){
         out.innerHTML = "<span class='done'>Beide fertig. So sieht Disziplin aus.</span>";
       } else if (mDone && !fDone){
-        out.innerHTML = `<span class='wait'>${rotate(femaleDone,"idxFem")}</span>`;
+        out.innerHTML = `<span class='wait'>${rotate(femaleDone,"femaleDone")}</span>`;
       } else if (!mDone && fDone){
-        out.innerHTML = `<span class='wait'>${rotate(maleDone,"idxMale")}</span>`;
+        out.innerHTML = `<span class='wait'>${rotate(maleDone,"maleDone")}</span>`;
       } else {
-        out.innerHTML = `<span class='wait'>${rotate(nobody,"idxNobody")}</span>`;
+        out.innerHTML = `<span class='wait'>${rotate(nobody,"nobody")}</span>`;
       }
     }
 
