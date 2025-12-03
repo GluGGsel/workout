@@ -479,29 +479,28 @@
       "{{total}} Reps. Man könnte fast meinen, sie meint es ernst. Weil sie es tut."
     ];
 
-    // ================== localStorage-Phrasen ==================
+    // ===== deterministische Auswahl pro Tag =====
 
-    function getDailyPhrase(key, arr, day){
+    const phraseState = {
+      day: null,
+      nobody: "",
+      maleDone: "",
+      femaleDone: "",
+      praiseMale: "",
+      praiseFemale: ""
+    };
+
+    function initPhrasesForDay(day){
       if (!day) day = 1;
-      if (!Array.isArray(arr) || arr.length === 0) return "";
+      if (phraseState.day === day) return;
+      phraseState.day = day;
 
-      const storageKey = `wc_phrase_${key}_${day}`;
-      try{
-        const cached = localStorage.getItem(storageKey);
-        if (cached) return cached;
-      } catch(e){
-        // localStorage kann failen (Safari/Privat usw.) -> dann halt ohne Cache
-      }
-
-      const idx = Math.floor(Math.random() * arr.length);
-      const chosen = arr[idx] || "";
-
-      try{
-        localStorage.setItem(storageKey, chosen);
-      } catch(e){
-        // wenn Speichern nicht geht, egal – dann ist es halt jedes Mal neu
-      }
-      return chosen;
+      // verschiedene Multiplikatoren, damit die Verteilung nicht identisch ist
+      phraseState.nobody      = nobody.length      ? nobody[(day*3)  % nobody.length]      : "";
+      phraseState.maleDone    = maleDone.length    ? maleDone[(day*5)  % maleDone.length]    : "";
+      phraseState.femaleDone  = femaleDone.length  ? femaleDone[(day*7)  % femaleDone.length]  : "";
+      phraseState.praiseMale  = praiseMale.length  ? praiseMale[(day*11) % praiseMale.length]  : "";
+      phraseState.praiseFemale= praiseFemale.length? praiseFemale[(day*13) % praiseFemale.length]: "";
     }
 
     // ================== LOGIK ==================
@@ -509,6 +508,8 @@
     function renderOverall(s){
       const box = document.getElementById("overallBox");
       box.innerHTML = "";
+
+      initPhrasesForDay(s.day);
 
       ["male","female"].forEach(p=>{
         const pname = p==="male" ? "Mann" : "Frau";
@@ -537,10 +538,9 @@
         if (total === 0){
           praise.textContent = "Noch keine Reps. Aktuell gewinnt die Bequemlichkeit.";
         } else {
-          const raw = p==="male"
-            ? getDailyPhrase("praiseMale", praiseMale, s.day)
-            : getDailyPhrase("praiseFemale", praiseFemale, s.day);
-          const msg = (raw || "Stabil durchgezogen. Weiter so.").replace("{{total}}", total);
+          let raw = p==="male" ? phraseState.praiseMale : phraseState.praiseFemale;
+          if (!raw) raw = "Stabil durchgezogen. Weiter so.";
+          const msg = raw.replace("{{total}}", total);
           praise.textContent = msg;
         }
         block.appendChild(praise);
@@ -653,16 +653,18 @@
       const out = document.getElementById("overallStatus");
       const day = s.day || 1;
 
+      initPhrasesForDay(day);
+
       if (mDone && fDone){
         out.innerHTML = "<span class='done'>Beide fertig. So sieht Disziplin aus.</span>";
       } else if (mDone && !fDone){
-        const line = getDailyPhrase("femaleDone", femaleDone, day) || "Mann fertig, Frau im Kreativmodus.";
+        const line = phraseState.femaleDone || "Mann fertig, Frau im Kreativmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else if (!mDone && fDone){
-        const line = getDailyPhrase("maleDone", maleDone, day) || "Frau fertig, Mann im Energiesparmodus.";
+        const line = phraseState.maleDone || "Frau fertig, Mann im Energiesparmodus.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       } else {
-        const line = getDailyPhrase("nobody", nobody, day) || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
+        const line = phraseState.nobody || "Niemand fertig. Aktuell gewinnt die Bequemlichkeit.";
         out.innerHTML = `<span class='wait'>${line}</span>`;
       }
     }
@@ -673,6 +675,7 @@
         document.getElementById("day").textContent = s.day;
         document.getElementById("date").textContent = formatDate(s.day);
 
+        initPhrasesForDay(s.day);
         renderOverall(s);
         renderPerson("maleExercises","male",s);
         renderPerson("femaleExercises","female",s);
