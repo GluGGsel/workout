@@ -15,31 +15,156 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
     <style>
-        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
-        h1 { margin: 0 0 10px; }
-        .container { margin-top: 20px; display: flex; gap: 20px; }
-        .card {
+        body {
+            font-family: Arial, sans-serif;
             padding: 20px;
+            background: #f5f5f5;
+            margin: 0;
+        }
+        h1 {
+            margin: 0 0 8px;
+        }
+        #dateLine {
+            font-size: 0.95rem;
+            color: #555;
+            margin-bottom: 16px;
+        }
+        .container {
+            margin-top: 10px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .card {
+            padding: 16px;
             border-radius: 10px;
             flex: 1;
+            min-width: 260px;
+            box-sizing: border-box;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
         }
-        .male { background: #e9f2ff; border: 2px solid #6aa6ff; }
-        .female { background: #ffe9f4; border: 2px solid #ff86b7; }
-        .exercise { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-        .exercise strong { flex: 1; }
-        .exercise.clickable { cursor: pointer; }
-        .exercise:hover { background: rgba(0,0,0,0.03); border-radius: 6px; }
-        .exercise button, .exercise input[type="checkbox"] { cursor: pointer; }
-        button[disabled], input[disabled] { opacity: 0.6; cursor: not-allowed; }
-        .totals { margin: 4px 0 10px; font-size: 0.95em; }
-        button { cursor: pointer; }
-        button[disabled] { opacity: 0.6; cursor: not-allowed; }
-        #phraseBox {
+        .male {
+            background: #e9f2ff;
+            border: 2px solid #6aa6ff;
+        }
+        .female {
+            background: #ffe9f4;
+            border: 2px solid #ff86b7;
+        }
+        .card h2 {
+            margin: 0 0 6px;
+        }
+        .totals {
+            margin: 4px 0 10px;
+            font-size: 0.88rem;
+            color: #333;
+        }
+        .totals strong {
+            display: block;
+            margin-bottom: 2px;
+        }
+        .exercise-list {
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .exercise {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+            padding: 6px 8px;
+            border-radius: 6px;
+        }
+        .exercise.clickable {
+            cursor: pointer;
+        }
+        .exercise.clickable:hover {
+            background: rgba(0,0,0,0.04);
+        }
+        .exercise-label {
+            flex: 1;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+        .exercise small {
+            display: block;
+            font-weight: normal;
+            font-size: 0.8rem;
+            color: #555;
+        }
+        .exercise input[type="checkbox"] {
+            cursor: pointer;
+        }
+        .exercise input[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 6px;
+        }
+        button {
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: none;
+            font-size: 0.85rem;
+        }
+        button[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-skip {
+            background: #ffe6b3;
+        }
+        .btn-injured {
+            background: #ffd6d6;
+        }
+        .btn-cant {
+            background: #e1e1ff;
+        }
+        .status-line {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: #444;
+        }
+        #phraseBox, #statusBox {
             margin: 15px 0;
             padding: 12px;
+            border-radius: 8px;
+        }
+        #phraseBox {
             background: #fffbe6;
             border: 1px solid #f0d14a;
+        }
+        #statusBox {
+            background: #eef9ff;
+            border: 1px solid #8cc6ff;
+            font-size: 0.9rem;
+        }
+        #nextDayBtn {
+            margin-top: 10px;
+            padding: 8px 14px;
             border-radius: 8px;
+            border: none;
+            background: #4caf50;
+            color: white;
+            font-weight: bold;
+        }
+        #nextDayBtn:hover {
+            filter: brightness(1.05);
+        }
+        #activeInfo {
+            margin-top: 4px;
+            font-size: 0.8rem;
+            color: #666;
+        }
+        @media (max-width: 700px) {
+            .container {
+                flex-direction: column;
+            }
         }
     </style>
 
@@ -47,25 +172,35 @@
 <body>
 
 <h1>Workout</h1>
-<div id="date"></div>
+<div id="dateLine"></div>
+<div id="activeInfo"></div>
 
 <div class="container">
     <div class="card male" id="maleBox">
-        <h2>{{ male_name }}</h2>
+        <h2 id="maleNameHeading">{{ male_name }}</h2>
         <div class="totals" id="maleTotals"></div>
-        <div id="maleExercises"></div>
+        <div class="exercise-list" id="maleExercises"></div>
+        <div class="actions" id="maleActions"></div>
+        <div class="status-line" id="maleStatus"></div>
     </div>
 
     <div class="card female" id="femaleBox">
-        <h2>{{ female_name }}</h2>
+        <h2 id="femaleNameHeading">{{ female_name }}</h2>
         <div class="totals" id="femaleTotals"></div>
-        <div id="femaleExercises"></div>
+        <div class="exercise-list" id="femaleExercises"></div>
+        <div class="actions" id="femaleActions"></div>
+        <div class="status-line" id="femaleStatus"></div>
     </div>
 </div>
 
 <div id="phraseBox">
     <strong>Spruch des Tages:</strong>
     <div id="phraseText"></div>
+</div>
+
+<div id="statusBox" style="display:none;">
+    <strong>Status:</strong>
+    <div id="statusText"></div>
 </div>
 
 <button id="nextDayBtn">Nächster Tag</button>
@@ -75,119 +210,435 @@ const maleName = {{ male_name|tojson }};
 const femaleName = {{ female_name|tojson }};
 const activePerson = {{ active_person|tojson }};
 
-function personalizePhrase(phrase) {
-    return phrase
-        .replace(/\bMann\b/g, maleName)
-        .replace(/\bFrau\b/g, femaleName);
+const EXERCISES = ["squats", "situps", "pushups"];
+const LABELS = {
+    squats: "Squats",
+    situps: "Crunches",
+    pushups: "Pushups"
+};
+
+let phrases = null;
+
+// Hilfsfunktionen
+function formatDateDE(isoDate) {
+    // "2025-12-04" -> "04.12.2025"
+    if (!isoDate) return "";
+    const [y, m, d] = isoDate.split("-");
+    return `${d}.${m}.${y}`;
 }
 
-async function load() {
-    const res = await fetch("/api/state");
-    const state = await res.json();
+function randItem(arr) {
+    if (!arr || !arr.length) return null;
+    const idx = Math.floor(Math.random() * arr.length);
+    return arr[idx];
+}
 
-    document.getElementById("date").innerText = "Tag: " + state.day;
+function personalizePhrase(phrase, ctx) {
+    if (!phrase) return "";
+    const context = ctx || {};
+    let result = phrase;
 
-    function render(person) {
-        const box = document.getElementById(person + "Exercises");
-        const totalsBox = document.getElementById(person + "Totals");
-        const labels = { squats: "Squats", situps: "Situps", pushups: "Pushups" };
-        const isActive = person === activePerson;
+    // Namen
+    result = result.replace(/{{MANN}}/g, maleName);
+    result = result.replace(/{{FRAU}}/g, femaleName);
 
-        box.innerHTML = "";
-        totalsBox.innerHTML =
-            `Erledigte Wiederholungen: ` +
-            ["squats", "situps", "pushups"].map(ex => `${labels[ex]}: ${state.overall[person][ex]}x`).join(" · ");
+    if (context.doneName) {
+        result = result.replace(/{{DONE}}/g, context.doneName);
+    }
+    if (context.otherName) {
+        result = result.replace(/{{OTHER}}/g, context.otherName);
+    }
+    if (context.name) {
+        result = result.replace(/{{NAME}}/g, context.name);
+    }
+    if (context.actor) {
+        result = result.replace(/{{ACTOR}}/g, context.actor);
+    }
 
-        Object.keys(state.reps[person]).forEach(exercise => {
-            const done = state.done[person][exercise];
-            const wrapper = document.createElement("div");
-            wrapper.className = "exercise";
+    return result;
+}
 
-            const label = document.createElement("strong");
-            label.textContent = `${labels[exercise]}: ${state.reps[person][exercise]}x`;
+function isDayClosedForPerson(state, person) {
+    const day = state.day;
+    const doneAll = EXERCISES.every(ex => state.done[person] && state.done[person][ex]);
+    const skipped = state.skip[person] && state.skip[person].includes(day);
+    const injured = state.injured[person] && state.injured[person].includes(day);
+    const cant = state.cant[person] && state.cant[person].includes(day);
+    return doneAll || skipped || injured || cant;
+}
 
-            const checkbox = document.createElement("input");
-            checkbox.type = "checkbox";
-            checkbox.checked = done;
-            checkbox.disabled = done || !isActive;
-            checkbox.title = isActive ? "Als erledigt markieren" : "Nur auf der eigenen Ansicht abhakbar";
-            const markDone = async () => {
-            const status = document.createElement("span");
-            status.textContent = done ? "✓" : "";
+async function loadPhrasesIfNeeded() {
+    if (phrases) return;
+    try {
+        const res = await fetch("/static/phrases.json");
+        if (res.ok) {
+            phrases = await res.json();
+        } else {
+            console.error("Konnte phrases.json nicht laden");
+            phrases = {};
+        }
+    } catch (e) {
+        console.error("Fehler beim Laden von phrases.json", e);
+        phrases = {};
+    }
+}
 
-            const button = document.createElement("button");
-            button.textContent = done ? "Erledigt" : "Erledigen";
-            button.disabled = done || !isActive;
-            button.dataset.person = person;
-            button.dataset.exercise = exercise;
-            if (!isActive) {
-                button.title = "Nur auf der eigenen Ansicht erledigen";
-            }
+function renderDateLine(state) {
+    const dateLine = document.getElementById("dateLine");
+    const currentDate = state.current_date;
+    const weekday = state.current_weekday;
+    const dayNr = state.day;
+    const formatted = `${weekday}, ${formatDateDE(currentDate)} – Tag ${dayNr}`;
+    dateLine.textContent = formatted;
 
-            button.onclick = async () => {
-                if (!isActive || done) return;
-                await fetch("/api/done", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ person, exercise })
-                });
-                load();
+    const activeInfo = document.getElementById("activeInfo");
+    const activeLabel = activePerson === "male" ? maleName : femaleName;
+    activeInfo.textContent = `Aktive Ansicht: ${activeLabel} – nur hier sind die Buttons klickbar.`;
+}
+
+function renderTotals(state, person) {
+    const boxId = person === "male" ? "maleTotals" : "femaleTotals";
+    const box = document.getElementById(boxId);
+    const overall = state.overall[person];
+    const skips = state.skip[person] ? state.skip[person].length : 0;
+    const injured = state.injured[person] ? state.injured[person].length : 0;
+    const cant = state.cant[person] ? state.cant[person].length : 0;
+    const startDate = state.start_date;
+
+    const crunchesTotal = overall.situps || 0;
+    const pushupsTotal = overall.pushups || 0;
+    const squatsTotal = overall.squats || 0;
+
+    box.innerHTML = `
+        <strong>Total seit ${formatDateDE(startDate)}:</strong>
+        Crunches: ${crunchesTotal}x ·
+        Pushups: ${pushupsTotal}x ·
+        Squats: ${squatsTotal}x ·
+        Skips: ${skips} ·
+        Krank: ${injured} ·
+        Reduktionen: ${cant}
+    `;
+}
+
+function renderExercises(state, person) {
+    const exBoxId = person === "male" ? "maleExercises" : "femaleExercises";
+    const actionsBoxId = person === "male" ? "maleActions" : "femaleActions";
+    const statusLineId = person === "male" ? "maleStatus" : "femaleStatus";
+
+    const exBox = document.getElementById(exBoxId);
+    const actionsBox = document.getElementById(actionsBoxId);
+    const statusLine = document.getElementById(statusLineId);
+
+    exBox.innerHTML = "";
+    actionsBox.innerHTML = "";
+    statusLine.textContent = "";
+
+    const isActive = (person === activePerson);
+    const day = state.day;
+
+    const skippedToday = state.skip[person] && state.skip[person].includes(day);
+    const injuredToday = state.injured[person] && state.injured[person].includes(day);
+    const cantToday = state.cant[person] && state.cant[person].includes(day);
+    const doneAll = EXERCISES.every(ex => state.done[person] && state.done[person][ex]);
+
+    const canInteractExercises = isActive && !skippedToday && !injuredToday && !cantToday;
+
+    // Übungen
+    EXERCISES.forEach(ex => {
+        const wrapper = document.createElement("div");
+        wrapper.className = "exercise";
+
+        const label = document.createElement("div");
+        label.className = "exercise-label";
+        const reps = state.reps[person][ex];
+        label.innerHTML = `✅ ${LABELS[ex]}: ${reps}x`;
+
+        const detail = document.createElement("small");
+        detail.textContent = state.done[person][ex] ? "Erledigt" : "Noch offen";
+
+        label.appendChild(detail);
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = !!state.done[person][ex];
+        checkbox.disabled = !canInteractExercises || state.done[person][ex];
+        checkbox.title = isActive
+            ? "Als erledigt markieren"
+            : "Nur auf der eigenen Ansicht abhakbar";
+
+        wrapper.appendChild(checkbox);
+        wrapper.appendChild(label);
+
+        if (canInteractExercises && !state.done[person][ex]) {
+            wrapper.classList.add("clickable");
+            wrapper.onclick = async (event) => {
+                if (event.target === checkbox && !checkbox.disabled) {
+                    // Checkbox direkt geklickt
+                }
+                await markDone(person, ex);
             };
-
-            checkbox.onchange = () => {
-                if (checkbox.checked) {
-                    markDone();
-                } else {
-                    checkbox.checked = done;
+            checkbox.onclick = async (event) => {
+                event.stopPropagation();
+                if (!checkbox.disabled) {
+                    await markDone(person, ex);
                 }
             };
+        }
 
-            if (isActive && !done) {
-                wrapper.classList.add("clickable");
-                wrapper.onclick = (event) => {
-                    if (event.target === checkbox) return;
-                    checkbox.checked = true;
-                    markDone();
-                };
-            }
+        exBox.appendChild(wrapper);
+    });
 
-            wrapper.appendChild(label);
-            wrapper.appendChild(checkbox);
-            wrapper.appendChild(label);
-            wrapper.appendChild(status);
-            wrapper.appendChild(button);
-            box.appendChild(wrapper);
+    // Statuszeile
+    if (skippedToday) {
+        statusLine.textContent = "Status heute: 😴 Skip markiert.";
+    } else if (injuredToday) {
+        statusLine.textContent = "Status heute: 🤒 Krank/Verletzt markiert.";
+    } else if (cantToday) {
+        statusLine.textContent = "Status heute: 😵‍💫 Reps reduziert mit „Ich kann nicht mehr“.";
+    } else if (doneAll) {
+        statusLine.textContent = "Status heute: ✅ Alle Übungen erledigt.";
+    } else {
+        statusLine.textContent = "Status heute: ⏳ Noch offen.";
+    }
+
+    // Aktionsbuttons (nur auf aktiver Ansicht sinnvoll)
+    const skipBtn = document.createElement("button");
+    skipBtn.className = "btn-skip";
+    skipBtn.textContent = "😴 Skip";
+    skipBtn.disabled = !isActive || skippedToday || injuredToday || cantToday;
+    skipBtn.title = isActive
+        ? "Fauler Tag eintragen (wenn erlaubt)"
+        : "Nur auf der eigenen Ansicht klickbar";
+
+    skipBtn.onclick = async () => {
+        await handleSkip(person);
+    };
+
+    const injBtn = document.createElement("button");
+    injBtn.className = "btn-injured";
+    injBtn.textContent = "🤒 Krank";
+    injBtn.disabled = !isActive || skippedToday || injuredToday || cantToday;
+    injBtn.title = isActive
+        ? "Krank/Verletzt eintragen"
+        : "Nur auf der eigenen Ansicht klickbar";
+
+    injBtn.onclick = async () => {
+        await handleInjured(person);
+    };
+
+    const cantBtn = document.createElement("button");
+    cantBtn.className = "btn-cant";
+    cantBtn.textContent = "😵‍💫 Ich kann nicht mehr";
+    cantBtn.disabled = !isActive || cantToday || skippedToday || injuredToday;
+    cantBtn.title = isActive
+        ? "Reps mit Passwort brutal reduzieren"
+        : "Nur auf der eigenen Ansicht klickbar";
+
+    cantBtn.onclick = async () => {
+        await handleCant(person);
+    };
+
+    actionsBox.appendChild(skipBtn);
+    actionsBox.appendChild(injBtn);
+    actionsBox.appendChild(cantBtn);
+}
+
+function renderDailyPhrase(state) {
+    if (!phrases) return;
+    const day = state.day;
+
+    const maleClosed = isDayClosedForPerson(state, "male");
+    const femaleClosed = isDayClosedForPerson(state, "female");
+
+    let pool = phrases.none_done || [];
+    let ctx = {};
+
+    if (maleClosed && femaleClosed) {
+        pool = phrases.all_done || [];
+    } else if (!maleClosed && !femaleClosed) {
+        pool = phrases.none_done || [];
+    } else {
+        pool = phrases.one_done || [];
+        const doneName = maleClosed ? maleName : femaleName;
+        const otherName = maleClosed ? femaleName : maleName;
+        ctx = { doneName, otherName };
+    }
+
+    const phrase = personalizePhrase(randItem(pool), ctx);
+    document.getElementById("phraseText").textContent = phrase || "";
+}
+
+function setStatusMessage(phrase) {
+    const box = document.getElementById("statusBox");
+    const text = document.getElementById("statusText");
+    if (phrase && phrase.trim() !== "") {
+        text.textContent = phrase;
+        box.style.display = "block";
+    } else {
+        text.textContent = "";
+        box.style.display = "none";
+    }
+}
+
+// API-Handler
+async function markDone(person, exercise) {
+    if (person !== activePerson) return;
+    try {
+        const res = await fetch("/api/done", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person, exercise })
         });
+        if (!res.ok) {
+            alert("Fehler beim Speichern – Server zickt rum.");
+            return;
+        }
+        await load();
+    } catch (e) {
+        console.error(e);
+        alert("Netzwerkfehler – Internet auch im Training faul?");
     }
+}
 
-    render("male");
-    render("female");
-
-    const maleDone = Object.values(state.done.male).every(Boolean);
-    const femaleDone = Object.values(state.done.female).every(Boolean);
-
-    const phraseRes = await fetch("/static/phrases.json");
-    const phrases = await phraseRes.json();
-
-    let pool = phrases.none_done;
-    if (maleDone && femaleDone) {
-        pool = phrases.both_done;
-    } else if (maleDone) {
-        pool = phrases.one_done_male;
-    } else if (femaleDone) {
-        pool = phrases.one_done_female;
+async function handleSkip(person) {
+    const name = person === "male" ? maleName : femaleName;
+    try {
+        const res = await fetch("/api/skip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person })
+        });
+        const data = await res.json();
+        if (data.status === "cheater") {
+            // Skip zu früh -> Cheater-Spruch
+            const pool = (phrases && phrases.cheater) || [];
+            const raw = randItem(pool) || "{{NAME}} wollte schon wieder schummeln. Nice try.";
+            const txt = personalizePhrase(raw, { name });
+            setStatusMessage(txt);
+        } else if (data.status === "ok") {
+            // Normaler Skip
+            const pool = (phrases && phrases.skip_day) || [];
+            const raw = randItem(pool) || "{{NAME}} hat heute offiziell einen Ehren-Faulheitstag.";
+            const txt = personalizePhrase(raw, { name });
+            setStatusMessage(txt);
+        } else {
+            alert("Unerwartete Antwort vom Server.");
+        }
+        await load();
+    } catch (e) {
+        console.error(e);
+        alert("Netzwerkfehler bei Skip.");
     }
+}
 
-    const randomPhrase = pool[Math.floor(Math.random() * pool.length)];
-    document.getElementById("phraseText").innerText = personalizePhrase(randomPhrase);
+async function handleInjured(person) {
+    const name = person === "male" ? maleName : femaleName;
+    try {
+        const res = await fetch("/api/injured", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person })
+        });
+        if (!res.ok) {
+            alert("Fehler beim Krank-Setzen.");
+            return;
+        }
+        const pool = (phrases && phrases.injured_day) || [];
+        const raw = randItem(pool) || "{{NAME}} ist heute offiziell kaputtgemeldet.";
+        const txt = personalizePhrase(raw, { name });
+        setStatusMessage(txt);
+        await load();
+    } catch (e) {
+        console.error(e);
+        alert("Netzwerkfehler bei Krank.");
+    }
+}
+
+async function handleCant(person) {
+    const name = person === "male" ? maleName : femaleName;
+    const pw = window.prompt("Passwort für „Ich kann nicht mehr“:");
+    if (pw === null) {
+        return; // Abgebrochen
+    }
+    try {
+        const res = await fetch("/api/cant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person, password: pw })
+        });
+        const data = await res.json();
+        if (res.status === 403 && data.status === "wrong_password") {
+            alert("Falsches Passwort. So schwach wie die Ausrede.");
+            return;
+        }
+        if (data.status === "cheater") {
+            // „Ich kann nicht mehr“ zu früh -> Cheater
+            const pool = (phrases && phrases.cheater) || [];
+            const raw = randItem(pool) || "{{NAME}} wollte schon wieder die Reps ertränken.";
+            const txt = personalizePhrase(raw, { name });
+            setStatusMessage(txt);
+        } else if (data.status === "ok") {
+            // Erfolgreiche Reduktion
+            const pool = (phrases && phrases.cant_day) || [];
+            const fallback = "{{NAME}} hat heute offiziell die Notbremse gezogen. Reps runter, Stolz hoch.";
+            // cant_day ist optional – wenn nicht vorhanden, fallback
+            const raw = randItem(pool) || fallback;
+            const txt = personalizePhrase(raw, { name });
+            setStatusMessage(txt);
+        } else {
+            alert("Unerwartete Antwort vom Server.");
+        }
+        await load();
+    } catch (e) {
+        console.error(e);
+        alert("Netzwerkfehler bei „Ich kann nicht mehr“.");
+    }
+}
+
+// Haupt-Load
+async function load() {
+    try {
+        await loadPhrasesIfNeeded();
+
+        const res = await fetch("/api/state");
+        if (!res.ok) {
+            alert("Fehler beim Laden des Zustands.");
+            return;
+        }
+        const state = await res.json();
+
+        renderDateLine(state);
+        renderTotals(state, "male");
+        renderTotals(state, "female");
+        renderExercises(state, "male");
+        renderExercises(state, "female");
+        renderDailyPhrase(state);
+
+        // Status beim Reload zurücksetzen (bis nächste Aktion)
+        // setStatusMessage(""); // Wenn du den letzten Status behalten willst, diese Zeile auskommentiert lassen
+    } catch (e) {
+        console.error(e);
+        alert("Allgemeiner Fehler beim Laden.");
+    }
 }
 
 document.getElementById("nextDayBtn").onclick = async () => {
-    const res = await fetch("/api/nextday", { method: "POST" });
-    if (!res.ok) alert("Noch nicht alle fertig!");
-    load();
+    try {
+        const res = await fetch("/api/nextday", { method: "POST" });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            alert(data.error || "Noch nicht alle fertig oder markiert.");
+            return;
+        }
+        setStatusMessage(""); // neuen Tag -> Status leeren
+        await load();
+    } catch (e) {
+        console.error(e);
+        alert("Fehler beim Wechsel auf den nächsten Tag.");
+    }
 };
 
+// Initialer Start
 load();
 </script>
 
