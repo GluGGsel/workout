@@ -27,6 +27,11 @@
         .female { background: #ffe9f4; border: 2px solid #ff86b7; }
         .exercise { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
         .exercise strong { flex: 1; }
+        .exercise.clickable { cursor: pointer; }
+        .exercise:hover { background: rgba(0,0,0,0.03); border-radius: 6px; }
+        .exercise button, .exercise input[type="checkbox"] { cursor: pointer; }
+        button[disabled], input[disabled] { opacity: 0.6; cursor: not-allowed; }
+        .totals { margin: 4px 0 10px; font-size: 0.95em; }
         button { cursor: pointer; }
         button[disabled] { opacity: 0.6; cursor: not-allowed; }
         #phraseBox {
@@ -47,11 +52,13 @@
 <div class="container">
     <div class="card male" id="maleBox">
         <h2>{{ male_name }}</h2>
+        <div class="totals" id="maleTotals"></div>
         <div id="maleExercises"></div>
     </div>
 
     <div class="card female" id="femaleBox">
         <h2>{{ female_name }}</h2>
+        <div class="totals" id="femaleTotals"></div>
         <div id="femaleExercises"></div>
     </div>
 </div>
@@ -82,10 +89,14 @@ async function load() {
 
     function render(person) {
         const box = document.getElementById(person + "Exercises");
+        const totalsBox = document.getElementById(person + "Totals");
         const labels = { squats: "Squats", situps: "Situps", pushups: "Pushups" };
         const isActive = person === activePerson;
 
         box.innerHTML = "";
+        totalsBox.innerHTML =
+            `Erledigte Wiederholungen: ` +
+            ["squats", "situps", "pushups"].map(ex => `${labels[ex]}: ${state.overall[person][ex]}x`).join(" · ");
 
         Object.keys(state.reps[person]).forEach(exercise => {
             const done = state.done[person][exercise];
@@ -95,6 +106,12 @@ async function load() {
             const label = document.createElement("strong");
             label.textContent = `${labels[exercise]}: ${state.reps[person][exercise]}x`;
 
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.checked = done;
+            checkbox.disabled = done || !isActive;
+            checkbox.title = isActive ? "Als erledigt markieren" : "Nur auf der eigenen Ansicht abhakbar";
+            const markDone = async () => {
             const status = document.createElement("span");
             status.textContent = done ? "✓" : "";
 
@@ -117,6 +134,25 @@ async function load() {
                 load();
             };
 
+            checkbox.onchange = () => {
+                if (checkbox.checked) {
+                    markDone();
+                } else {
+                    checkbox.checked = done;
+                }
+            };
+
+            if (isActive && !done) {
+                wrapper.classList.add("clickable");
+                wrapper.onclick = (event) => {
+                    if (event.target === checkbox) return;
+                    checkbox.checked = true;
+                    markDone();
+                };
+            }
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(checkbox);
             wrapper.appendChild(label);
             wrapper.appendChild(status);
             wrapper.appendChild(button);
