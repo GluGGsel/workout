@@ -49,10 +49,21 @@ def index():
 
     if view == "frau" or view == "female":
         manifest_file = "manifest-frau.json"
+        active_person = "female"
     else:
         manifest_file = "manifest-mann.json"
+        active_person = "male"
 
-    return render_template("index.html", manifest_file=manifest_file)
+    male_name = request.args.get("male_name") or request.args.get("mann") or "Mann"
+    female_name = request.args.get("female_name") or request.args.get("frau") or "Frau"
+
+    return render_template(
+        "index.html",
+        manifest_file=manifest_file,
+        male_name=male_name,
+        female_name=female_name,
+        active_person=active_person,
+    )
 
 
 @app.route("/api/state")
