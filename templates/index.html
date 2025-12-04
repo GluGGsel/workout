@@ -25,6 +25,17 @@
         }
         .male { background: #e9f2ff; border: 2px solid #6aa6ff; }
         .female { background: #ffe9f4; border: 2px solid #ff86b7; }
+        .exercise { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .exercise strong { flex: 1; }
+        button { cursor: pointer; }
+        button[disabled] { opacity: 0.6; cursor: not-allowed; }
+        #phraseBox {
+            margin: 15px 0;
+            padding: 12px;
+            background: #fffbe6;
+            border: 1px solid #f0d14a;
+            border-radius: 8px;
+        }
     </style>
 
 </head>
@@ -35,19 +46,34 @@
 
 <div class="container">
     <div class="card male" id="maleBox">
-        <h2>Mann</h2>
+        <h2>{{ male_name }}</h2>
         <div id="maleExercises"></div>
     </div>
 
     <div class="card female" id="femaleBox">
-        <h2>Frau</h2>
+        <h2>{{ female_name }}</h2>
         <div id="femaleExercises"></div>
     </div>
+</div>
+
+<div id="phraseBox">
+    <strong>Spruch des Tages:</strong>
+    <div id="phraseText"></div>
 </div>
 
 <button id="nextDayBtn">Nächster Tag</button>
 
 <script>
+const maleName = {{ male_name|tojson }};
+const femaleName = {{ female_name|tojson }};
+const activePerson = {{ active_person|tojson }};
+
+function personalizePhrase(phrase) {
+    return phrase
+        .replace(/\bMann\b/g, maleName)
+        .replace(/\bFrau\b/g, femaleName);
+}
+
 async function load() {
     const res = await fetch("/api/state");
     const state = await res.json();
@@ -56,15 +82,68 @@ async function load() {
 
     function render(person) {
         const box = document.getElementById(person + "Exercises");
-        box.innerHTML = `
-            Squats: ${state.reps[person].squats}x<br>
-            Situps: ${state.reps[person].situps}x<br>
-            Pushups: ${state.reps[person].pushups}x<br>
-        `;
+        const labels = { squats: "Squats", situps: "Situps", pushups: "Pushups" };
+        const isActive = person === activePerson;
+
+        box.innerHTML = "";
+
+        Object.keys(state.reps[person]).forEach(exercise => {
+            const done = state.done[person][exercise];
+            const wrapper = document.createElement("div");
+            wrapper.className = "exercise";
+
+            const label = document.createElement("strong");
+            label.textContent = `${labels[exercise]}: ${state.reps[person][exercise]}x`;
+
+            const status = document.createElement("span");
+            status.textContent = done ? "✓" : "";
+
+            const button = document.createElement("button");
+            button.textContent = done ? "Erledigt" : "Erledigen";
+            button.disabled = done || !isActive;
+            button.dataset.person = person;
+            button.dataset.exercise = exercise;
+            if (!isActive) {
+                button.title = "Nur auf der eigenen Ansicht erledigen";
+            }
+
+            button.onclick = async () => {
+                if (!isActive || done) return;
+                await fetch("/api/done", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ person, exercise })
+                });
+                load();
+            };
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(status);
+            wrapper.appendChild(button);
+            box.appendChild(wrapper);
+        });
     }
 
     render("male");
     render("female");
+
+    const maleDone = Object.values(state.done.male).every(Boolean);
+    const femaleDone = Object.values(state.done.female).every(Boolean);
+
+    const phraseRes = await fetch("/static/phrases.json");
+    const phrases = await phraseRes.json();
+
+    let pool = phrases.none_done;
+    if (maleDone && femaleDone) {
+        pool = phrases.both_done;
+    } else if (maleDone) {
+        pool = phrases.one_done_male;
+    } else if (femaleDone) {
+        pool = phrases.one_done_female;
+    }
+
+    const randomPhrase = pool[Math.floor(Math.random() * pool.length)];
+    document.getElementById("phraseText").innerText = personalizePhrase(randomPhrase);
 }
 
 document.getElementById("nextDayBtn").onclick = async () => {
