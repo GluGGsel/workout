@@ -7,6 +7,7 @@ Eine kleine, aber brutale WebApp, um zwei Personen täglich zu tracken:
 - Skip-Day pro Person
 - “Ich kann nicht mehr”-Button → reduziert Reps um 10
 - witzige, zynische, dumme Sprüche zur Motivation
+- eigene Namen per URL-Parameter (z.B. `?male_name=Alex&female_name=Sam`), damit die Sprüche personalisiert sind
 - Passwortschutz (`reset`) für Rep-Reduktion
 - skalierbar, leichtgewichtig (Flask + Gunicorn)
 

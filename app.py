@@ -52,7 +52,15 @@ def index():
     else:
         manifest_file = "manifest-mann.json"
 
-    return render_template("index.html", manifest_file=manifest_file)
+    male_name = request.args.get("male_name") or request.args.get("mann") or "Mann"
+    female_name = request.args.get("female_name") or request.args.get("frau") or "Frau"
+
+    return render_template(
+        "index.html",
+        manifest_file=manifest_file,
+        male_name=male_name,
+        female_name=female_name,
+    )
 
 
 @app.route("/api/state")
