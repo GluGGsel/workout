@@ -32,6 +32,8 @@
         .exercise button, .exercise input[type="checkbox"] { cursor: pointer; }
         button[disabled], input[disabled] { opacity: 0.6; cursor: not-allowed; }
         .totals { margin: 4px 0 10px; font-size: 0.95em; }
+        button { cursor: pointer; }
+        button[disabled] { opacity: 0.6; cursor: not-allowed; }
         #phraseBox {
             margin: 15px 0;
             padding: 12px;
@@ -110,6 +112,19 @@ async function load() {
             checkbox.disabled = done || !isActive;
             checkbox.title = isActive ? "Als erledigt markieren" : "Nur auf der eigenen Ansicht abhakbar";
             const markDone = async () => {
+            const status = document.createElement("span");
+            status.textContent = done ? "✓" : "";
+
+            const button = document.createElement("button");
+            button.textContent = done ? "Erledigt" : "Erledigen";
+            button.disabled = done || !isActive;
+            button.dataset.person = person;
+            button.dataset.exercise = exercise;
+            if (!isActive) {
+                button.title = "Nur auf der eigenen Ansicht erledigen";
+            }
+
+            button.onclick = async () => {
                 if (!isActive || done) return;
                 await fetch("/api/done", {
                     method: "POST",
@@ -138,6 +153,9 @@ async function load() {
 
             wrapper.appendChild(label);
             wrapper.appendChild(checkbox);
+            wrapper.appendChild(label);
+            wrapper.appendChild(status);
+            wrapper.appendChild(button);
             box.appendChild(wrapper);
         });
     }
