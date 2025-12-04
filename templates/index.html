@@ -25,6 +25,10 @@
         }
         .male { background: #e9f2ff; border: 2px solid #6aa6ff; }
         .female { background: #ffe9f4; border: 2px solid #ff86b7; }
+        .exercise { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+        .exercise strong { flex: 1; }
+        button { cursor: pointer; }
+        button[disabled] { opacity: 0.6; cursor: not-allowed; }
         #phraseBox {
             margin: 15px 0;
             padding: 12px;
@@ -62,6 +66,7 @@
 <script>
 const maleName = {{ male_name|tojson }};
 const femaleName = {{ female_name|tojson }};
+const activePerson = {{ active_person|tojson }};
 
 function personalizePhrase(phrase) {
     return phrase
@@ -77,11 +82,46 @@ async function load() {
 
     function render(person) {
         const box = document.getElementById(person + "Exercises");
-        box.innerHTML = `
-            Squats: ${state.reps[person].squats}x<br>
-            Situps: ${state.reps[person].situps}x<br>
-            Pushups: ${state.reps[person].pushups}x<br>
-        `;
+        const labels = { squats: "Squats", situps: "Situps", pushups: "Pushups" };
+        const isActive = person === activePerson;
+
+        box.innerHTML = "";
+
+        Object.keys(state.reps[person]).forEach(exercise => {
+            const done = state.done[person][exercise];
+            const wrapper = document.createElement("div");
+            wrapper.className = "exercise";
+
+            const label = document.createElement("strong");
+            label.textContent = `${labels[exercise]}: ${state.reps[person][exercise]}x`;
+
+            const status = document.createElement("span");
+            status.textContent = done ? "✓" : "";
+
+            const button = document.createElement("button");
+            button.textContent = done ? "Erledigt" : "Erledigen";
+            button.disabled = done || !isActive;
+            button.dataset.person = person;
+            button.dataset.exercise = exercise;
+            if (!isActive) {
+                button.title = "Nur auf der eigenen Ansicht erledigen";
+            }
+
+            button.onclick = async () => {
+                if (!isActive || done) return;
+                await fetch("/api/done", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ person, exercise })
+                });
+                load();
+            };
+
+            wrapper.appendChild(label);
+            wrapper.appendChild(status);
+            wrapper.appendChild(button);
+            box.appendChild(wrapper);
+        });
     }
 
     render("male");
