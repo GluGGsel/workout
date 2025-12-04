@@ -1,556 +1,80 @@
 <!doctype html>
 <html lang="de">
 <head>
-  <meta charset="utf-8">
-  <title>Workout-Counter</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta charset="utf-8">
+    <title>Workout-Counter</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
-  <!-- PWA Manifest & iOS-Integration -->
-  <link rel="manifest" href="/static/manifest.json">
-  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" sizes="180x180" href="/static/icons/icon-180.png">
-  <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
-  <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <!-- Dynamisches Manifest abhängig von ?view= -->
+    <link rel="manifest" href="/static/{{ manifest_file }}">
 
-  <style>
-    :root{
-      --male-bg:#e9f2ff; --male-border:#6aa6ff; --male-accent:#2c6cff;
-      --female-bg:#ffe9f4; --female-border:#ff86b7; --female-accent:#e33682;
-      --ok:#16a34a; --muted:#666;
-    }
-    html,body{height:100%}
-    body{
-      font-family:Arial,Helvetica,sans-serif;
-      padding:20px;
-      background:#f5f5f5;
-      color:#111;
-      -webkit-text-size-adjust:100%;
-    }
-    h1{margin:0 0 6px;font-size:2rem;}
-    .muted{color:var(--muted);font-size:0.95rem;margin:4px 0 8px}
+    <!-- iOS Icons -->
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
+    <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
-    .counter-title{
-      margin-top:4px;
-      font-size:1.2rem;
-      font-weight:700;
-      color:#444;
-    }
-    .overall-box{
-      margin:8px 0 18px;
-      padding:12px;
-      background:#fff;
-      border-radius:10px;
-      border:1px solid #ddd;
-      font-size:0.95rem;
-    }
-    .overall-person-block{
-      padding:6px 0 10px;
-      border-bottom:1px solid #eee;
-    }
-    .overall-person-block:last-child{border-bottom:none;}
-    .overall-person{
-      margin-top:0;
-      margin-bottom:4px;
-      font-weight:700;
-    }
-    .overall-row{
-      display:flex;
-      justify-content:space-between;
-      padding:2px 0;
-    }
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+        h1 { margin: 0 0 10px; }
+        .container { margin-top: 20px; display: flex; gap: 20px; }
+        .card {
+            padding: 20px;
+            border-radius: 10px;
+            flex: 1;
+        }
+        .male { background: #e9f2ff; border: 2px solid #6aa6ff; }
+        .female { background: #ffe9f4; border: 2px solid #ff86b7; }
+    </style>
 
-    .date-line{
-      font-size:1.5rem;
-      font-weight:700;
-      margin:4px 0 4px;
-    }
-
-    .status{
-      margin:8px 0 16px;
-      font-size:1rem;
-      font-weight:600;
-      color:#b45309;
-    }
-    .status.ok{color:var(--ok);}
-
-    .container{display:flex;gap:20px;flex-wrap:wrap;margin-top:10px;}
-    .panel{
-      border:2px solid #ddd;
-      border-radius:12px;
-      padding:16px;
-      width:340px;
-      background:white;
-    }
-    .panel.male{background:var(--male-bg);border-color:var(--male-border);}
-    .panel.female{background:var(--female-bg);border-color:var(--female-border);}
-    .panel h2{margin:0 0 8px;font-size:1.4rem}
-
-    .badge{
-      display:inline-block;
-      border-radius:999px;
-      padding:4px 10px;
-      font-size:0.85rem;
-      font-weight:600;
-    }
-    .badge.male{
-      background:rgba(44,108,255,.12);
-      color:var(--male-accent);
-      border:1px solid var(--male-border);
-    }
-    .badge.female{
-      background:rgba(227,54,130,.12);
-      color:var(--female-accent);
-      border:1px solid var(--female-border);
-    }
-
-    .exercise{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin:8px 0;
-      padding:10px;
-      border-radius:8px;
-      background:#fff;
-      border:1px solid #ccc;
-      cursor:pointer;
-      user-select:none;
-    }
-    .exercise.done{
-      background:#f0fff0;
-      border-color:#88cc88;
-      color:#166534;
-      font-weight:600;
-    }
-    .exercise.injured{
-      background:#fff5f5;
-      border-color:#f97373;
-      color:#b91c1c;
-      font-weight:600;
-    }
-    .exercise.injured strong{
-      color:#b91c1c;
-    }
-
-    .readonly{
-      opacity:.6;
-      pointer-events:none;
-    }
-
-    .flag-line{
-      font-size:0.85rem;
-      margin-top:4px;
-      color:#7c2d12;
-    }
-
-    .btn-row{
-      margin-top:10px;
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
-    .btn{
-      padding:10px;
-      border-radius:8px;
-      border:1px solid #bbb;
-      background:#fff;
-      font-size:0.95rem;
-      cursor:pointer;
-      text-align:center;
-    }
-    .btn.skip{background:#fff7cc;}
-    .btn.injured{background:#ffe4e6;border-color:#f97373;}
-    .btn.cant{background:#fee2e2;border-color:#b91c1c;font-weight:600;}
-
-    .btn.disabled{
-      opacity:.5;
-      pointer-events:none;
-    }
-
-    #nextDayWrapper{
-      margin-top:18px;
-    }
-    #nextDayBtn{
-      padding:12px 18px;
-      border-radius:10px;
-      border:1px solid #888;
-      background:#fff;
-      font-size:1rem;
-      cursor:pointer;
-      min-width:180px;
-    }
-    #nextDayBtn.disabled{
-      opacity:.5;
-      pointer-events:none;
-    }
-
-    @media(max-width:768px){
-      body{padding:14px;font-size:17px;}
-      h1{font-size:1.8rem;}
-      .date-line{font-size:1.4rem;}
-      .container{flex-direction:column;gap:14px;}
-      .panel{width:100%;max-width:none;}
-      #nextDayBtn{width:100%;}
-    }
-  </style>
 </head>
 <body>
-  <h1>Workout</h1>
-  <div class="counter-title">Workout-Counter</div>
-  <div id="overallBox" class="overall-box"></div>
 
-  <div class="date-line">
-    Heute: <span id="dateText">–</span>
-  </div>
-  <div class="muted">
-    Tag: <span id="dayText">1</span>
-  </div>
+<h1>Workout</h1>
+<div id="date"></div>
 
-  <div id="statusBox" class="status"></div>
-
-  <div class="container">
-    <div class="panel male" id="malePanel">
-      <h2><span class="badge male">Mann</span></h2>
-      <div id="maleExercises"></div>
-      <div id="maleFlags" class="flag-line"></div>
-      <div class="btn-row">
-        <button id="maleSkipBtn" class="btn skip">Skip-Day nutzen</button>
-        <button id="maleInjuredBtn" class="btn injured">Verletzt / krank (heute)</button>
-        <button id="maleCantBtn" class="btn cant">Ich kann nicht mehr</button>
-      </div>
+<div class="container">
+    <div class="card male" id="maleBox">
+        <h2>Mann</h2>
+        <div id="maleExercises"></div>
     </div>
 
-    <div class="panel female" id="femalePanel">
-      <h2><span class="badge female">Frau</span></h2>
-      <div id="femaleExercises"></div>
-      <div id="femaleFlags" class="flag-line"></div>
-      <div class="btn-row">
-        <button id="femaleSkipBtn" class="btn skip">Skip-Day nutzen</button>
-        <button id="femaleInjuredBtn" class="btn injured">Verletzt / krank (heute)</button>
-        <button id="femaleCantBtn" class="btn cant">Ich kann nicht mehr</button>
-      </div>
+    <div class="card female" id="femaleBox">
+        <h2>Frau</h2>
+        <div id="femaleExercises"></div>
     </div>
-  </div>
+</div>
 
-  <div id="nextDayWrapper">
-    <button id="nextDayBtn" class="disabled">Nächster Tag</button>
-  </div>
+<button id="nextDayBtn">Nächster Tag</button>
 
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const view = (params.get("view") || "").toLowerCase();
-    const whoAmI = view === "mann" ? "male" : view === "frau" ? "female" : "";
+<script>
+async function load() {
+    const res = await fetch("/api/state");
+    const state = await res.json();
 
-    const weekdays = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+    document.getElementById("date").innerText = "Tag: " + state.day;
 
-    function formatDateFromIso(isoStr){
-      if (!isoStr) return "–";
-      const d = new Date(isoStr);
-      if (isNaN(d.getTime())) return isoStr;
-      const dd = String(d.getDate()).padStart(2,"0");
-      const mm = String(d.getMonth()+1).padStart(2,"0");
-      const yyyy = d.getFullYear();
-      return `${weekdays[d.getDay()]}, ${dd}.${mm}.${yyyy}`;
+    function render(person) {
+        const box = document.getElementById(person + "Exercises");
+        box.innerHTML = `
+            Squats: ${state.reps[person].squats}x<br>
+            Situps: ${state.reps[person].situps}x<br>
+            Pushups: ${state.reps[person].pushups}x<br>
+        `;
     }
 
-    async function fetchState(){
-      const res = await fetch("/api/state");
-      if (!res.ok) throw new Error("State-Request fehlgeschlagen");
-      return await res.json();
-    }
+    render("male");
+    render("female");
+}
 
-    function renderOverall(state){
-      const box = document.getElementById("overallBox");
-      box.innerHTML = "";
+document.getElementById("nextDayBtn").onclick = async () => {
+    const res = await fetch("/api/nextday", { method: "POST" });
+    if (!res.ok) alert("Noch nicht alle fertig!");
+    load();
+};
 
-      const persons = ["male","female"];
-      persons.forEach(p=>{
-        const pname = p === "male" ? "Mann" : "Frau";
-        const ov = state.overall && state.overall[p] ? state.overall[p] : {squats:0,situps:0,pushups:0};
+load();
+</script>
 
-        const block = document.createElement("div");
-        block.className = "overall-person-block";
-
-        const header = document.createElement("div");
-        header.className = "overall-person";
-        header.textContent = pname;
-        block.appendChild(header);
-
-        const row1 = document.createElement("div");
-        row1.className = "overall-row";
-        row1.innerHTML = `<span>Squats</span><span>${ov.squats} reps total</span>`;
-        block.appendChild(row1);
-
-        const row2 = document.createElement("div");
-        row2.className = "overall-row";
-        row2.innerHTML = `<span>Situps</span><span>${ov.situps} reps total</span>`;
-        block.appendChild(row2);
-
-        const row3 = document.createElement("div");
-        row3.className = "overall-row";
-        row3.innerHTML = `<span>Push Ups</span><span>${ov.pushups} reps total</span>`;
-        block.appendChild(row3);
-
-        box.appendChild(block);
-      });
-    }
-
-    function renderPerson(state, person){
-      const exContainer = document.getElementById(person + "Exercises");
-      const flagsEl = document.getElementById(person + "Flags");
-      const panel = document.getElementById(person + "Panel");
-
-      exContainer.innerHTML = "";
-      flagsEl.textContent = "";
-
-      const reps = (state.reps && state.reps[person]) || {squats:0,situps:0,pushups:0};
-      const done = (state.done && state.done[person]) || {squats:false,situps:false,pushups:false};
-
-      const day = state.day;
-      const skippedToday = (state.skip && state.skip[person] || []).includes(day);
-      const injuredToday = (state.injured && state.injured[person] || []).includes(day);
-      const cantToday = (state.cant && state.cant[person] || []).includes(day);
-
-      const canClick = whoAmI === person;
-
-      const exDefs = [
-        {key:"squats", label:"Squats"},
-        {key:"situps", label:"Situps"},
-        {key:"pushups", label:"Push Ups"}
-      ];
-
-      exDefs.forEach(def=>{
-        const row = document.createElement("div");
-        let cls = "exercise";
-        if (done[def.key]) cls += " done";
-        if (injuredToday) cls += " injured";
-        row.className = cls;
-
-        const icon = injuredToday ? "✗ " : "";
-        const val = reps[def.key] || 0;
-
-        row.innerHTML = `<span>${def.label}</span><strong>${icon}${val}x</strong>`;
-
-        if (canClick){
-          row.addEventListener("click", async ()=>{
-            try{
-              const r = await fetch("/api/toggle", {
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({person, exercise:def.key})
-              });
-              if (!r.ok) throw new Error("Toggle fehlgeschlagen");
-              await loadAndRender();
-            }catch(e){
-              console.error(e);
-              alert("Konnte Übung nicht speichern. Wahrscheinlich bist du zu faul – oder das Netzwerk.");
-            }
-          });
-        } else {
-          row.classList.add("readonly");
-        }
-
-        exContainer.appendChild(row);
-      });
-
-      // Flags-Text
-      const flags = [];
-      if (skippedToday) flags.push("Skip-Day genutzt");
-      if (injuredToday) flags.push("Verletzt / krank (zählt heute als erledigt, aber nicht im Total)");
-      if (cantToday) flags.push("Heute wurde 'Ich kann nicht mehr' gedrückt");
-
-      flagsEl.textContent = flags.join(" · ");
-
-      // Buttons "readonly" setzen, falls nicht eigene Ansicht
-      ["SkipBtn","InjuredBtn","CantBtn"].forEach(suffix=>{
-        const btn = document.getElementById(person + suffix);
-        if (!btn) return;
-        if (canClick) btn.classList.remove("disabled"); else btn.classList.add("disabled");
-      });
-    }
-
-    function canAdvanceClient(state){
-      const day = state.day;
-      const maleDone = state.done && state.done.male || {};
-      const femaleDone = state.done && state.done.female || {};
-      const skip = state.skip || {};
-      const injured = state.injured || {};
-
-      const mSkip = (skip.male || []).includes(day);
-      const fSkip = (skip.female || []).includes(day);
-      const mInj = (injured.male || []).includes(day);
-      const fInj = (injured.female || []).includes(day);
-
-      const mAll = ["squats","situps","pushups"].every(k => !!maleDone[k]);
-      const fAll = ["squats","situps","pushups"].every(k => !!femaleDone[k]);
-
-      const mOk = mAll || mSkip || mInj;
-      const fOk = fAll || fSkip || fInj;
-
-      // Datum nicht in der Zukunft
-      const dateIso = state.date;
-      if (!dateIso) return false;
-      const d = new Date(dateIso);
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      d.setHours(0,0,0,0);
-      const isFuture = d.getTime() >= today.getTime(); // nur vor heute darf weiter
-      if (isFuture) return false;
-
-      return mOk && fOk;
-    }
-
-    function bindButtons(state){
-      const day = state.day;
-
-      // Next Day
-      const nextBtn = document.getElementById("nextDayBtn");
-      const canAdv = canAdvanceClient(state);
-      if (canAdv) nextBtn.classList.remove("disabled"); else nextBtn.classList.add("disabled");
-
-      nextBtn.onclick = async ()=>{
-        if (!canAdv){
-          alert("Nächster Tag ist noch nicht freigeschaltet. Erst fertig werden oder korrekt skip/verletzt setzen – und nicht in die Zukunft springen.");
-          return;
-        }
-        try{
-          const r = await fetch("/api/next_day", {method:"POST"});
-          if (!r.ok){
-            const data = await r.json().catch(()=>({}));
-            console.error("next_day error:", data);
-            alert("Server erlaubt den nächsten Tag noch nicht. Entweder nicht fertig oder falsches Datum.");
-            return;
-          }
-          await loadAndRender();
-        }catch(e){
-          console.error(e);
-          alert("Fehler beim Setzen des nächsten Tages.");
-        }
-      };
-
-      // Person-spezifische Buttons
-      ["male","female"].forEach(person=>{
-        const canClick = whoAmI === person;
-
-        const skipBtn = document.getElementById(person+"SkipBtn");
-        const injBtn  = document.getElementById(person+"InjuredBtn");
-        const cantBtn = document.getElementById(person+"CantBtn");
-
-        if (skipBtn){
-          skipBtn.onclick = async ()=>{
-            if (!canClick) return;
-            try{
-              const r = await fetch("/api/skip", {
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({person})
-              });
-              const data = await r.json();
-              if (!r.ok){
-                alert("Skip-Day konnte nicht gesetzt werden.");
-                return;
-              }
-              if (data.warning){
-                alert(data.warning);
-              }
-              await loadAndRender();
-            }catch(e){
-              console.error(e);
-              alert("Fehler beim Setzen des Skip-Days.");
-            }
-          };
-        }
-
-        if (injBtn){
-          injBtn.onclick = async ()=>{
-            if (!canClick) return;
-            try{
-              const r = await fetch("/api/injured", {
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({person})
-              });
-              if (!r.ok){
-                alert("Konnte 'verletzt/krank' nicht speichern.");
-                return;
-              }
-              await loadAndRender();
-            }catch(e){
-              console.error(e);
-              alert("Fehler beim Markieren als verletzt/krank.");
-            }
-          };
-        }
-
-        if (cantBtn){
-          cantBtn.onclick = async ()=>{
-            if (!canClick) return;
-            const pw = prompt("Passwort für 'Ich kann nicht mehr':");
-            if (!pw) return;
-            try{
-              const r = await fetch("/api/reps_reduce", {
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({person, password: pw})
-              });
-              if (!r.ok){
-                if (r.status === 403){
-                  alert("Falsches Passwort. Netter Versuch.");
-                } else {
-                  alert("Konnte Reps nicht reduzieren.");
-                }
-                return;
-              }
-              await loadAndRender();
-            }catch(e){
-              console.error(e);
-              alert("Fehler bei 'Ich kann nicht mehr'.");
-            }
-          };
-        }
-      });
-    }
-
-    async function loadAndRender(){
-      try{
-        const state = await fetchState();
-
-        document.getElementById("dayText").textContent = state.day;
-        document.getElementById("dateText").textContent = formatDateFromIso(state.date);
-
-        renderOverall(state);
-        renderPerson(state, "male");
-        renderPerson(state, "female");
-
-        const statusEl = document.getElementById("statusBox");
-        statusEl.textContent = state.phrase || "";
-        const maleDoneAll = ["squats","situps","pushups"].every(k => state.done.male[k]);
-        const femaleDoneAll = ["squats","situps","pushups"].every(k => state.done.female[k]);
-        if (maleDoneAll && femaleDoneAll){
-          statusEl.classList.add("ok");
-        } else {
-          statusEl.classList.remove("ok");
-        }
-
-        bindButtons(state);
-      }catch(e){
-        console.error(e);
-        alert("Fehler beim Laden des Status. Vielleicht hat der Server auch 'Ich kann nicht mehr' gedrückt.");
-      }
-    }
-
-    loadAndRender();
-    setInterval(loadAndRender, 5000);
-    document.addEventListener("visibilitychange", ()=>{
-      if (!document.hidden) loadAndRender();
-    });
-
-    // PWA Service Worker
-    if ("serviceWorker" in navigator){
-      navigator.serviceWorker.register("/static/service-worker.js")
-        .catch(err => console.warn("SW-Registrierung fehlgeschlagen:", err));
-    }
-  </script>
 </body>
 </html>
