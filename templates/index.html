@@ -25,6 +25,13 @@
         }
         .male { background: #e9f2ff; border: 2px solid #6aa6ff; }
         .female { background: #ffe9f4; border: 2px solid #ff86b7; }
+        #phraseBox {
+            margin: 15px 0;
+            padding: 12px;
+            background: #fffbe6;
+            border: 1px solid #f0d14a;
+            border-radius: 8px;
+        }
     </style>
 
 </head>
@@ -35,19 +42,33 @@
 
 <div class="container">
     <div class="card male" id="maleBox">
-        <h2>Mann</h2>
+        <h2>{{ male_name }}</h2>
         <div id="maleExercises"></div>
     </div>
 
     <div class="card female" id="femaleBox">
-        <h2>Frau</h2>
+        <h2>{{ female_name }}</h2>
         <div id="femaleExercises"></div>
     </div>
+</div>
+
+<div id="phraseBox">
+    <strong>Spruch des Tages:</strong>
+    <div id="phraseText"></div>
 </div>
 
 <button id="nextDayBtn">Nächster Tag</button>
 
 <script>
+const maleName = {{ male_name|tojson }};
+const femaleName = {{ female_name|tojson }};
+
+function personalizePhrase(phrase) {
+    return phrase
+        .replace(/\bMann\b/g, maleName)
+        .replace(/\bFrau\b/g, femaleName);
+}
+
 async function load() {
     const res = await fetch("/api/state");
     const state = await res.json();
@@ -65,6 +86,24 @@ async function load() {
 
     render("male");
     render("female");
+
+    const maleDone = Object.values(state.done.male).every(Boolean);
+    const femaleDone = Object.values(state.done.female).every(Boolean);
+
+    const phraseRes = await fetch("/static/phrases.json");
+    const phrases = await phraseRes.json();
+
+    let pool = phrases.none_done;
+    if (maleDone && femaleDone) {
+        pool = phrases.both_done;
+    } else if (maleDone) {
+        pool = phrases.one_done_male;
+    } else if (femaleDone) {
+        pool = phrases.one_done_female;
+    }
+
+    const randomPhrase = pool[Math.floor(Math.random() * pool.length)];
+    document.getElementById("phraseText").innerText = personalizePhrase(randomPhrase);
 }
 
 document.getElementById("nextDayBtn").onclick = async () => {
