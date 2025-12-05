@@ -207,38 +207,38 @@
 
 <script>
 (function () {
-    "use strict";
+    // ---- Konfiguration ----
+    var maleName = {{ male_name|tojson }};
+    var femaleName = {{ female_name|tojson }};
+    var activePerson = {{ active_person|tojson }};
 
-    const maleName = {{ male_name|tojson }};
-    const femaleName = {{ female_name|tojson }};
-    const activePerson = {{ active_person|tojson }};
-
-    const EXERCISES = ["squats", "situps", "pushups"];
-    const LABELS = {
+    var EXERCISES = ["squats", "situps", "pushups"];
+    var LABELS = {
         squats: "Squats",
         situps: "Crunches",
         pushups: "Pushups"
     };
 
-    let phrases = null;
+    var phrases = null;
 
+    // ---- Hilfsfunktionen ----
     function formatDateDE(isoDate) {
         if (!isoDate) return "";
-        const parts = isoDate.split("-");
+        var parts = isoDate.split("-");
         if (parts.length !== 3) return isoDate;
         return parts[2] + "." + parts[1] + "." + parts[0];
     }
 
     function randItem(arr) {
         if (!arr || !arr.length) return null;
-        const idx = Math.floor(Math.random() * arr.length);
+        var idx = Math.floor(Math.random() * arr.length);
         return arr[idx];
     }
 
     function personalizePhrase(phrase, ctx) {
         if (!phrase) return "";
-        let result = phrase;
-        const context = ctx || {};
+        var context = ctx || {};
+        var result = phrase;
 
         result = result.replace(/{{MANN}}/g, maleName);
         result = result.replace(/{{FRAU}}/g, femaleName);
@@ -255,60 +255,196 @@
         if (context.actor) {
             result = result.replace(/{{ACTOR}}/g, context.actor);
         }
+
         return result;
     }
 
     function isDayClosedForPerson(state, person) {
-        const day = state.day;
-        const doneAll = EXERCISES.every(function (ex) {
-            return state.done[person] && state.done[person][ex];
-        });
-        const skipped = state.skip[person] && state.skip[person].indexOf(day) !== -1;
-        const injured = state.injured[person] && state.injured[person].indexOf(day) !== -1;
-        const cant = state.cant[person] && state.cant[person].indexOf(day) !== -1;
+        var day = state.day;
+        var doneAll = true;
+        for (var i = 0; i < EXERCISES.length; i++) {
+            var ex = EXERCISES[i];
+            if (!state.done[person] || !state.done[person][ex]) {
+                doneAll = false;
+                break;
+            }
+        }
+        var skipped = state.skip[person] && state.skip[person].indexOf(day) !== -1;
+        var injured = state.injured[person] && state.injured[person].indexOf(day) !== -1;
+        var cant = state.cant[person] && state.cant[person].indexOf(day) !== -1;
         return doneAll || skipped || injured || cant;
     }
 
-    async function loadPhrasesIfNeeded() {
-        if (phrases) return;
-        try {
-            const res = await fetch("/static/phrases.json");
-            if (res.ok) {
-                phrases = await res.json();
-            } else {
-                console.error("Konnte phrases.json nicht laden");
-                phrases = {};
-            }
-        } catch (e) {
-            console.error("Fehler beim Laden von phrases.json", e);
-            phrases = {};
+    function setStatusMessage(phrase) {
+        var box = document.getElementById("statusBox");
+        var text = document.getElementById("statusText");
+        if (phrase && phrase.trim() !== "") {
+            text.textContent = phrase;
+            box.style.display = "block";
+        } else {
+            text.textContent = "";
+            box.style.display = "none";
         }
     }
 
-    function renderDateLine(state) {
-        const dateLine = document.getElementById("dateLine");
-        const activeInfo = document.getElementById("activeInfo");
+    // ---- Backend-Aufrufe (Promises, kein async/await) ----
+    function fetchJSON(url, options) {
+        return fetch(url, options || {}).then(function (res) {
+            return res.json().then(function (data) {
+                return { ok: res.ok, status: res.status, data: data };
+            })["catch"](function () {
+                return { ok: res.ok, status: res.status, data: null };
+            });
+        });
+    }
 
-        const formatted = state.current_weekday + ", " +
+    function loadPhrasesIfNeeded() {
+        if (phrases) {
+            return Promise.resolve();
+        }
+        return fetch("/static/phrases.json").then(function (res) {
+            if (!res.ok) {
+                console.error("Konnte phrases.json nicht laden");
+                phrases = {};
+                return;
+            }
+            return res.json().then(function (data) {
+                phrases = data;
+            });
+        })["catch"](function (e) {
+            console.error("Fehler beim Laden von phrases.json", e);
+            phrases = {};
+        });
+    }
+
+    function markDone(person, exercise) {
+        if (person !== activePerson) return;
+        return fetchJSON("/api/done", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person: person, exercise: exercise })
+        }).then(function (res) {
+            if (!res.ok) {
+                alert("Fehler beim Speichern – Server zickt rum.");
+                return;
+            }
+            return load();
+        })["catch"](function (e) {
+            console.error(e);
+            alert("Netzwerkfehler – Internet auch im Training faul?");
+        });
+    }
+
+    function handleSkip(person) {
+        var name = person === "male" ? maleName : femaleName;
+        return fetchJSON("/api/skip", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person: person })
+        }).then(function (res) {
+            if (res.data && res.data.status === "cheater") {
+                var pool = (phrases && phrases.cheater) || [];
+                var raw = randItem(pool) || "{{NAME}} wollte schon wieder schummeln. Nice try.";
+                var txt = personalizePhrase(raw, { name: name });
+                setStatusMessage(txt);
+            } else if (res.data && res.data.status === "ok") {
+                var pool2 = (phrases && phrases.skip_day) || [];
+                var raw2 = randItem(pool2) || "{{NAME}} hat heute offiziell einen Ehren-Faulheitstag.";
+                var txt2 = personalizePhrase(raw2, { name: name });
+                setStatusMessage(txt2);
+            } else {
+                alert("Unerwartete Antwort vom Server.");
+            }
+            return load();
+        })["catch"](function (e) {
+            console.error(e);
+            alert("Netzwerkfehler bei Skip.");
+        });
+    }
+
+    function handleInjured(person) {
+        var name = person === "male" ? maleName : femaleName;
+        return fetchJSON("/api/injured", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person: person })
+        }).then(function (res) {
+            if (!res.ok) {
+                alert("Fehler beim Krank-Setzen.");
+                return;
+            }
+            var pool = (phrases && phrases.injured_day) || [];
+            var raw = randItem(pool) || "{{NAME}} ist heute offiziell kaputtgemeldet.";
+            var txt = personalizePhrase(raw, { name: name });
+            setStatusMessage(txt);
+            return load();
+        })["catch"](function (e) {
+            console.error(e);
+            alert("Netzwerkfehler bei Krank.");
+        });
+    }
+
+    function handleCant(person) {
+        var name = person === "male" ? maleName : femaleName;
+        var pw = window.prompt("Passwort für „Ich kann nicht mehr“:");
+        if (pw === null) return;
+
+        return fetchJSON("/api/cant", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ person: person, password: pw })
+        }).then(function (res) {
+            var data = res.data || {};
+            if (res.status === 403 && data.status === "wrong_password") {
+                alert("Falsches Passwort. So schwach wie die Ausrede.");
+                return;
+            }
+            if (data.status === "cheater") {
+                var pool = (phrases && phrases.cheater) || [];
+                var raw = randItem(pool) || "{{NAME}} wollte schon wieder die Reps ertränken.";
+                var txt = personalizePhrase(raw, { name: name });
+                setStatusMessage(txt);
+            } else if (data.status === "ok") {
+                var pool2 = (phrases && phrases.cant_day) || [];
+                var fallback = "{{NAME}} hat heute offiziell die Notbremse gezogen. Reps runter, Stolz hoch.";
+                var raw2 = randItem(pool2) || fallback;
+                var txt2 = personalizePhrase(raw2, { name: name });
+                setStatusMessage(txt2);
+            } else {
+                alert("Unerwartete Antwort vom Server.");
+            }
+            return load();
+        })["catch"](function (e) {
+            console.error(e);
+            alert("Netzwerkfehler bei „Ich kann nicht mehr“.");
+        });
+    }
+
+    // ---- Renderfunktionen ----
+    function renderDateLine(state) {
+        var dateLine = document.getElementById("dateLine");
+        var activeInfo = document.getElementById("activeInfo");
+
+        var formatted = state.current_weekday + ", " +
             formatDateDE(state.current_date) + " – Tag " + state.day;
         dateLine.textContent = formatted;
 
-        const activeLabel = activePerson === "male" ? maleName : femaleName;
+        var activeLabel = activePerson === "male" ? maleName : femaleName;
         activeInfo.textContent = "Aktive Ansicht: " + activeLabel + " – nur hier sind die Buttons klickbar.";
     }
 
     function renderTotals(state, person) {
-        const boxId = person === "male" ? "maleTotals" : "femaleTotals";
-        const box = document.getElementById(boxId);
+        var boxId = person === "male" ? "maleTotals" : "femaleTotals";
+        var box = document.getElementById(boxId);
 
-        const overall = state.overall[person];
-        const skips = (state.skip[person] || []).length;
-        const injured = (state.injured[person] || []).length;
-        const cant = (state.cant[person] || []).length;
+        var overall = state.overall[person];
+        var skips = (state.skip[person] || []).length;
+        var injured = (state.injured[person] || []).length;
+        var cant = (state.cant[person] || []).length;
 
-        const crunchesTotal = overall.situps || 0;
-        const pushupsTotal = overall.pushups || 0;
-        const squatsTotal = overall.squats || 0;
+        var crunchesTotal = overall.situps || 0;
+        var pushupsTotal = overall.pushups || 0;
+        var squatsTotal = overall.squats || 0;
 
         box.innerHTML =
             "<strong>Total seit " + formatDateDE(state.start_date) + ":</strong> " +
@@ -320,172 +456,57 @@
             "Reduktionen: " + cant;
     }
 
-    async function markDone(person, exercise) {
-        if (person !== activePerson) return;
-        try {
-            const res = await fetch("/api/done", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ person: person, exercise: exercise })
-            });
-            if (!res.ok) {
-                alert("Fehler beim Speichern – Server zickt rum.");
-                return;
-            }
-            await load();
-        } catch (e) {
-            console.error(e);
-            alert("Netzwerkfehler – Internet auch im Training faul?");
-        }
-    }
-
-    function setStatusMessage(phrase) {
-        const box = document.getElementById("statusBox");
-        const text = document.getElementById("statusText");
-        if (phrase && phrase.trim() !== "") {
-            text.textContent = phrase;
-            box.style.display = "block";
-        } else {
-            text.textContent = "";
-            box.style.display = "none";
-        }
-    }
-
-    async function handleSkip(person) {
-        const name = person === "male" ? maleName : femaleName;
-        try {
-            const res = await fetch("/api/skip", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ person: person })
-            });
-            const data = await res.json();
-
-            if (data.status === "cheater") {
-                const pool = (phrases && phrases.cheater) || [];
-                const raw = randItem(pool) || "{{NAME}} wollte schon wieder schummeln. Nice try.";
-                const txt = personalizePhrase(raw, { name: name });
-                setStatusMessage(txt);
-            } else if (data.status === "ok") {
-                const pool = (phrases && phrases.skip_day) || [];
-                const raw = randItem(pool) || "{{NAME}} hat heute offiziell einen Ehren-Faulheitstag.";
-                const txt = personalizePhrase(raw, { name: name });
-                setStatusMessage(txt);
-            } else {
-                alert("Unerwartete Antwort vom Server.");
-            }
-            await load();
-        } catch (e) {
-            console.error(e);
-            alert("Netzwerkfehler bei Skip.");
-        }
-    }
-
-    async function handleInjured(person) {
-        const name = person === "male" ? maleName : femaleName;
-        try {
-            const res = await fetch("/api/injured", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ person: person })
-            });
-            if (!res.ok) {
-                alert("Fehler beim Krank-Setzen.");
-                return;
-            }
-            const pool = (phrases && phrases.injured_day) || [];
-            const raw = randItem(pool) || "{{NAME}} ist heute offiziell kaputtgemeldet.";
-            const txt = personalizePhrase(raw, { name: name });
-            setStatusMessage(txt);
-            await load();
-        } catch (e) {
-            console.error(e);
-            alert("Netzwerkfehler bei Krank.");
-        }
-    }
-
-    async function handleCant(person) {
-        const name = person === "male" ? maleName : femaleName;
-        const pw = window.prompt("Passwort für „Ich kann nicht mehr“:");
-        if (pw === null) {
-            return;
-        }
-        try {
-            const res = await fetch("/api/cant", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ person: person, password: pw })
-            });
-            const data = await res.json();
-
-            if (res.status === 403 && data.status === "wrong_password") {
-                alert("Falsches Passwort. So schwach wie die Ausrede.");
-                return;
-            }
-            if (data.status === "cheater") {
-                const pool = (phrases && phrases.cheater) || [];
-                const raw = randItem(pool) || "{{NAME}} wollte schon wieder die Reps ertränken.";
-                const txt = personalizePhrase(raw, { name: name });
-                setStatusMessage(txt);
-            } else if (data.status === "ok") {
-                const pool = (phrases && phrases.cant_day) || [];
-                const fallback = "{{NAME}} hat heute offiziell die Notbremse gezogen. Reps runter, Stolz hoch.";
-                const raw = randItem(pool) || fallback;
-                const txt = personalizePhrase(raw, { name: name });
-                setStatusMessage(txt);
-            } else {
-                alert("Unerwartete Antwort vom Server.");
-            }
-            await load();
-        } catch (e) {
-            console.error(e);
-            alert("Netzwerkfehler bei „Ich kann nicht mehr“.");
-        }
-    }
-
     function renderExercises(state, person) {
-        const exBoxId = person === "male" ? "maleExercises" : "femaleExercises";
-        const actionsBoxId = person === "male" ? "maleActions" : "femaleActions";
-        const statusLineId = person === "male" ? "maleStatus" : "femaleStatus";
+        var exBoxId = person === "male" ? "maleExercises" : "femaleExercises";
+        var actionsBoxId = person === "male" ? "maleActions" : "femaleActions";
+        var statusLineId = person === "male" ? "maleStatus" : "femaleStatus";
 
-        const exBox = document.getElementById(exBoxId);
-        const actionsBox = document.getElementById(actionsBoxId);
-        const statusLine = document.getElementById(statusLineId);
+        var exBox = document.getElementById(exBoxId);
+        var actionsBox = document.getElementById(actionsBoxId);
+        var statusLine = document.getElementById(statusLineId);
 
         exBox.innerHTML = "";
         actionsBox.innerHTML = "";
         statusLine.textContent = "";
 
-        const isActive = (person === activePerson);
-        const day = state.day;
+        var isActive = (person === activePerson);
+        var day = state.day;
 
-        const skippedToday = state.skip[person] && state.skip[person].indexOf(day) !== -1;
-        const injuredToday = state.injured[person] && state.injured[person].indexOf(day) !== -1;
-        const cantToday = state.cant[person] && state.cant[person].indexOf(day) !== -1;
-        const doneAll = EXERCISES.every(function (ex) {
-            return state.done[person] && state.done[person][ex];
-        });
+        var skippedToday = state.skip[person] && state.skip[person].indexOf(day) !== -1;
+        var injuredToday = state.injured[person] && state.injured[person].indexOf(day) !== -1;
+        var cantToday = state.cant[person] && state.cant[person].indexOf(day) !== -1;
 
-        const canInteractExercises = isActive && !skippedToday && !injuredToday && !cantToday;
+        var doneAll = true;
+        for (var i = 0; i < EXERCISES.length; i++) {
+            var ex = EXERCISES[i];
+            if (!state.done[person] || !state.done[person][ex]) {
+                doneAll = false;
+                break;
+            }
+        }
 
-        EXERCISES.forEach(function (ex) {
-            const wrapper = document.createElement("div");
+        var canInteractExercises = isActive && !skippedToday && !injuredToday && !cantToday;
+
+        for (var j = 0; j < EXERCISES.length; j++) {
+            var ex2 = EXERCISES[j];
+
+            var wrapper = document.createElement("div");
             wrapper.className = "exercise";
 
-            const label = document.createElement("div");
+            var label = document.createElement("div");
             label.className = "exercise-label";
 
-            const reps = state.reps[person][ex];
-            label.innerHTML = "✅ " + LABELS[ex] + ": " + reps + "x";
+            var reps = state.reps[person][ex2];
+            label.innerHTML = "✅ " + LABELS[ex2] + ": " + reps + "x";
 
-            const detail = document.createElement("small");
-            detail.textContent = state.done[person][ex] ? "Erledigt" : "Noch offen";
+            var detail = document.createElement("small");
+            detail.textContent = state.done[person][ex2] ? "Erledigt" : "Noch offen";
             label.appendChild(detail);
 
-            const checkbox = document.createElement("input");
+            var checkbox = document.createElement("input");
             checkbox.type = "checkbox";
-            checkbox.checked = !!state.done[person][ex];
-            checkbox.disabled = !canInteractExercises || state.done[person][ex];
+            checkbox.checked = !!state.done[person][ex2];
+            checkbox.disabled = !canInteractExercises || state.done[person][ex2];
             checkbox.title = isActive
                 ? "Als erledigt markieren"
                 : "Nur auf der eigenen Ansicht abhakbar";
@@ -493,23 +514,25 @@
             wrapper.appendChild(checkbox);
             wrapper.appendChild(label);
 
-            if (canInteractExercises && !state.done[person][ex]) {
-                wrapper.classList.add("clickable");
-                wrapper.addEventListener("click", function () {
-                    if (!checkbox.disabled) {
-                        markDone(person, ex);
-                    }
-                });
-                checkbox.addEventListener("click", function (event) {
-                    event.stopPropagation();
-                    if (!checkbox.disabled) {
-                        markDone(person, ex);
-                    }
-                });
+            if (canInteractExercises && !state.done[person][ex2]) {
+                (function (personInner, exInner, cbInner, wrapperInner) {
+                    wrapperInner.classList.add("clickable");
+                    wrapperInner.addEventListener("click", function () {
+                        if (!cbInner.disabled) {
+                            markDone(personInner, exInner);
+                        }
+                    });
+                    cbInner.addEventListener("click", function (event) {
+                        event.stopPropagation();
+                        if (!cbInner.disabled) {
+                            markDone(personInner, exInner);
+                        }
+                    });
+                })(person, ex2, checkbox, wrapper);
             }
 
             exBox.appendChild(wrapper);
-        });
+        }
 
         if (skippedToday) {
             statusLine.textContent = "Status heute: 😴 Skip markiert.";
@@ -523,7 +546,7 @@
             statusLine.textContent = "Status heute: ⏳ Noch offen.";
         }
 
-        const skipBtn = document.createElement("button");
+        var skipBtn = document.createElement("button");
         skipBtn.className = "btn-skip";
         skipBtn.textContent = "😴 Skip";
         skipBtn.disabled = !isActive || skippedToday || injuredToday || cantToday;
@@ -534,7 +557,7 @@
             handleSkip(person);
         });
 
-        const injBtn = document.createElement("button");
+        var injBtn = document.createElement("button");
         injBtn.className = "btn-injured";
         injBtn.textContent = "🤒 Krank";
         injBtn.disabled = !isActive || skippedToday || injuredToday || cantToday;
@@ -545,7 +568,7 @@
             handleInjured(person);
         });
 
-        const cantBtn = document.createElement("button");
+        var cantBtn = document.createElement("button");
         cantBtn.className = "btn-cant";
         cantBtn.textContent = "😵‍💫 Ich kann nicht mehr";
         cantBtn.disabled = !isActive || cantToday || skippedToday || injuredToday;
@@ -564,11 +587,11 @@
     function renderDailyPhrase(state) {
         if (!phrases) return;
 
-        const maleClosed = isDayClosedForPerson(state, "male");
-        const femaleClosed = isDayClosedForPerson(state, "female");
+        var maleClosed = isDayClosedForPerson(state, "male");
+        var femaleClosed = isDayClosedForPerson(state, "female");
 
-        let pool = phrases.none_done || [];
-        let ctx = {};
+        var pool = phrases.none_done || [];
+        var ctx = {};
 
         if (maleClosed && femaleClosed) {
             pool = phrases.all_done || [];
@@ -576,52 +599,55 @@
             pool = phrases.none_done || [];
         } else {
             pool = phrases.one_done || [];
-            const doneName = maleClosed ? maleName : femaleName;
-            const otherName = maleClosed ? femaleName : maleName;
+            var doneName = maleClosed ? maleName : femaleName;
+            var otherName = maleClosed ? femaleName : maleName;
             ctx = { doneName: doneName, otherName: otherName };
         }
 
-        const phrase = personalizePhrase(randItem(pool), ctx);
+        var phrase = personalizePhrase(randItem(pool), ctx);
         document.getElementById("phraseText").textContent = phrase || "";
     }
 
-    async function load() {
-        try {
-            await loadPhrasesIfNeeded();
+    // ---- Haupt-Load ----
+    function load() {
+        return loadPhrasesIfNeeded()
+            .then(function () {
+                return fetchJSON("/api/state");
+            })
+            .then(function (res) {
+                if (!res.ok) {
+                    alert("Fehler beim Laden des Zustands.");
+                    return;
+                }
+                var state = res.data;
 
-            const res = await fetch("/api/state");
-            if (!res.ok) {
-                alert("Fehler beim Laden des Zustands.");
-                return;
-            }
-            const state = await res.json();
-
-            renderDateLine(state);
-            renderTotals(state, "male");
-            renderTotals(state, "female");
-            renderExercises(state, "male");
-            renderExercises(state, "female");
-            renderDailyPhrase(state);
-        } catch (e) {
-            console.error(e);
-            alert("Allgemeiner Fehler beim Laden.");
-        }
+                renderDateLine(state);
+                renderTotals(state, "male");
+                renderTotals(state, "female");
+                renderExercises(state, "male");
+                renderExercises(state, "female");
+                renderDailyPhrase(state);
+            })["catch"](function (e) {
+                console.error(e);
+                alert("Allgemeiner Fehler beim Laden.");
+            });
     }
 
-    document.getElementById("nextDayBtn").addEventListener("click", async function () {
-        try {
-            const res = await fetch("/api/nextday", { method: "POST" });
-            if (!res.ok) {
-                const data = await res.json().catch(function () { return {}; });
-                alert(data.error || "Noch nicht alle fertig oder markiert.");
-                return;
-            }
-            setStatusMessage("");
-            await load();
-        } catch (e) {
-            console.error(e);
-            alert("Fehler beim Wechsel auf den nächsten Tag.");
-        }
+    // ---- Nächster Tag Button ----
+    document.getElementById("nextDayBtn").addEventListener("click", function () {
+        fetchJSON("/api/nextday", { method: "POST" })
+            .then(function (res) {
+                if (!res.ok) {
+                    var data = res.data || {};
+                    alert(data.error || "Noch nicht alle fertig oder markiert.");
+                    return;
+                }
+                setStatusMessage("");
+                return load();
+            })["catch"](function (e) {
+                console.error(e);
+                alert("Fehler beim Wechsel auf den nächsten Tag.");
+            });
     });
 
     // Initialer Start
