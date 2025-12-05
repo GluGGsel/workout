@@ -5,10 +5,8 @@
     <title>Workout-Counter</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
-    <!-- Dynamisches Manifest abhängig von ?view= -->
     <link rel="manifest" href="/static/{{ manifest_file }}">
 
-    <!-- iOS Icons -->
     <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192.png">
     <link rel="apple-touch-icon" sizes="512x512" href="/static/icons/icon-512.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -205,12 +203,22 @@
 
 <button id="nextDayBtn">Nächster Tag</button>
 
+<!-- Jinja nur hier erlaubt: Konfig in ein globales Objekt -->
+<script>
+window.WORKOUT_CONFIG = {
+    maleName: {{ male_name|tojson }},
+    femaleName: {{ female_name|tojson }},
+    activePerson: {{ active_person|tojson }}
+};
+</script>
+
+{% raw %}
 <script>
 (function () {
-    // ---- Konfiguration ----
-    var maleName = {{ male_name|tojson }};
-    var femaleName = {{ female_name|tojson }};
-    var activePerson = {{ active_person|tojson }};
+    // ---- Config aus globalem Objekt ----
+    var maleName = window.WORKOUT_CONFIG.maleName;
+    var femaleName = window.WORKOUT_CONFIG.femaleName;
+    var activePerson = window.WORKOUT_CONFIG.activePerson;
 
     var EXERCISES = ["squats", "situps", "pushups"];
     var LABELS = {
@@ -221,7 +229,6 @@
 
     var phrases = null;
 
-    // ---- Hilfsfunktionen ----
     function formatDateDE(isoDate) {
         if (!isoDate) return "";
         var parts = isoDate.split("-");
@@ -287,7 +294,6 @@
         }
     }
 
-    // ---- Backend-Aufrufe (Promises, kein async/await) ----
     function fetchJSON(url, options) {
         return fetch(url, options || {}).then(function (res) {
             return res.json().then(function (data) {
@@ -420,7 +426,6 @@
         });
     }
 
-    // ---- Renderfunktionen ----
     function renderDateLine(state) {
         var dateLine = document.getElementById("dateLine");
         var activeInfo = document.getElementById("activeInfo");
@@ -430,7 +435,8 @@
         dateLine.textContent = formatted;
 
         var activeLabel = activePerson === "male" ? maleName : femaleName;
-        activeInfo.textContent = "Aktive Ansicht: " + activeLabel + " – nur hier sind die Buttons klickbar.";
+        activeInfo.textContent = "Aktive Ansicht: " + activeLabel +
+            " – nur hier sind die Buttons klickbar.";
     }
 
     function renderTotals(state, person) {
@@ -477,7 +483,8 @@
         var cantToday = state.cant[person] && state.cant[person].indexOf(day) !== -1;
 
         var doneAll = true;
-        for (var i = 0; i < EXERCISES.length; i++) {
+        var i;
+        for (i = 0; i < EXERCISES.length; i++) {
             var ex = EXERCISES[i];
             if (!state.done[person] || !state.done[person][ex]) {
                 doneAll = false;
@@ -487,8 +494,8 @@
 
         var canInteractExercises = isActive && !skippedToday && !injuredToday && !cantToday;
 
-        for (var j = 0; j < EXERCISES.length; j++) {
-            var ex2 = EXERCISES[j];
+        for (i = 0; i < EXERCISES.length; i++) {
+            var ex2 = EXERCISES[i];
 
             var wrapper = document.createElement("div");
             wrapper.className = "exercise";
@@ -608,7 +615,6 @@
         document.getElementById("phraseText").textContent = phrase || "";
     }
 
-    // ---- Haupt-Load ----
     function load() {
         return loadPhrasesIfNeeded()
             .then(function () {
@@ -633,7 +639,6 @@
             });
     }
 
-    // ---- Nächster Tag Button ----
     document.getElementById("nextDayBtn").addEventListener("click", function () {
         fetchJSON("/api/nextday", { method: "POST" })
             .then(function (res) {
@@ -650,10 +655,10 @@
             });
     });
 
-    // Initialer Start
     load();
 })();
 </script>
+{% endraw %}
 
 </body>
 </html>
