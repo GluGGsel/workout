@@ -1,800 +1,527 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <title>Daily Workout – {{ male_name }} & {{ female_name }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+import json
+import os
+from datetime import date, datetime, timedelta
 
-    <!-- PWA / Icons -->
-    <link rel="manifest" href="{{ url_for('static', filename='manifest-' ~ role ~ '.json') }}">
-    <link rel="icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
+from flask import Flask, render_template, jsonify, request
 
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            background: #0f172a;
-            color: #e5e7eb;
+app = Flask(__name__)
+
+STATE_FILE = "state.json"
+
+# Namen können hier leicht mit Umgebungsvariablen angepasst werden
+DEFAULT_MALE_NAME = os.getenv("WORKOUT_MALE_NAME", "Mann")
+DEFAULT_FEMALE_NAME = os.getenv("WORKOUT_FEMALE_NAME", "Frau")
+
+EXERCISES = ["squats", "situps", "pushups"]  # "situps" wird in der UI als "Crunches" angezeigt
+
+SKIP_MIN_DAYS = 7          # Skip höchstens alle 7 Tage
+CANT_MIN_DAYS = 10         # "Ich kann nicht mehr" höchstens alle 10 Tage
+CANT_REDUCTION = 10        # Reps -10 bei "Ich kann nicht mehr"
+START_REPS = 15            # Startwiederholungen
+CANT_PASSWORD = os.getenv("WORKOUT_CANT_PASSWORD", "reset")
+
+# Mapping zwischen Frontend-Rollen und internem State
+ROLE_TO_INTERNAL = {
+    "mann": "male",
+    "frau": "female",
+}
+INTERNAL_TO_ROLE = {
+    "male": "mann",
+    "female": "frau",
+}
+
+# Mapping zwischen Frontend-Übungsnamen und internem State
+EXTERNAL_TO_INTERNAL_EXERCISE = {
+    "crunches": "situps",
+    "pushups": "pushups",
+    "squats": "squats",
+}
+INTERNAL_TO_EXTERNAL_EXERCISE = {v: k for k, v in EXTERNAL_TO_INTERNAL_EXERCISE.items()}
+
+
+def _today() -> date:
+    """Aktuelles Datum (ohne Uhrzeit) als date-Objekt."""
+    return date.today()
+
+
+def load_state():
+    """State aus Datei laden oder Initialstate erzeugen."""
+    if not os.path.exists(STATE_FILE):
+        start = _today()
+        state = {
+            "day": 1,
+            "start_date": start.isoformat(),
+            "reps": {
+                "male": {ex: START_REPS for ex in EXERCISES},
+                "female": {ex: START_REPS for ex in EXERCISES},
+            },
+            "done": {
+                "male": {ex: False for ex in EXERCISES},
+                "female": {ex: False for ex in EXERCISES},
+            },
+            "overall": {
+                "male": {ex: 0 for ex in EXERCISES},
+                "female": {ex: 0 for ex in EXERCISES},
+            },
+            "skip": {"male": [], "female": []},
+            "injured": {"male": [], "female": []},
+            "cant": {"male": [], "female": []},
+            "cheater": {"male": [], "female": []},
+        }
+        save_state(state)
+        return state
+
+    with open(STATE_FILE, "r", encoding="utf-8") as f:
+        state = json.load(f)
+
+    # Backwards-Kompatibilität: fehlende Felder ergänzen
+    if "start_date" not in state:
+        # Versuche das Startdatum aus vorhandener day-Nummer zu rekonstruieren
+        try:
+            d = int(state.get("day", 1))
+        except (TypeError, ValueError):
+            d = 1
+        start = _today() - timedelta(days=max(d - 1, 0))
+        state["start_date"] = start.isoformat()
+
+    if "reps" not in state:
+        state["reps"] = {
+            "male": {ex: START_REPS for ex in EXERCISES},
+            "female": {ex: START_REPS for ex in EXERCISES},
         }
 
-        .app {
-            max-width: 960px;
-            margin: 0 auto;
-            padding: 16px;
+    if "done" not in state:
+        state["done"] = {
+            "male": {ex: False for ex in EXERCISES},
+            "female": {ex: False for ex in EXERCISES},
         }
 
-        header {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: space-between;
-            align-items: flex-start;
-            gap: 8px;
-            margin-bottom: 16px;
+    if "overall" not in state:
+        state["overall"] = {
+            "male": {ex: 0 for ex in EXERCISES},
+            "female": {ex: 0 for ex in EXERCISES},
         }
 
-        .date-block {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
+    for key in ["skip", "injured", "cant", "cheater"]:
+        if key not in state:
+            state[key] = {"male": [], "female": []}
+        else:
+            for person in ["male", "female"]:
+                state[key].setdefault(person, [])
+
+    # fehlende Exercises ergänzen
+    for person in ["male", "female"]:
+        state["reps"].setdefault(person, {})
+        state["done"].setdefault(person, {})
+        state["overall"].setdefault(person, {})
+        for ex in EXERCISES:
+            state["reps"][person].setdefault(ex, START_REPS)
+            state["done"][person].setdefault(ex, False)
+            state["overall"][person].setdefault(ex, 0)
+
+    return state
+
+
+def save_state(state):
+    """State mit einfacher, aber sicherer Methode speichern."""
+    tmp_file = STATE_FILE + ".tmp"
+    with open(tmp_file, "w", encoding="utf-8") as f:
+        json.dump(state, f, ensure_ascii=False, indent=2)
+    os.replace(tmp_file, STATE_FILE)
+
+
+def calculate_current_date(state):
+    """Berechnet Datum & Wochentag für den aktuellen Tag basierend auf start_date und day."""
+    try:
+        start = datetime.strptime(state["start_date"], "%Y-%m-%d").date()
+    except Exception:
+        start = _today()
+        state["start_date"] = start.isoformat()
+        save_state(state)
+
+    day_index = max(int(state.get("day", 1)), 1) - 1
+    current = start + timedelta(days=day_index)
+    weekday_names = [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+    ]
+    weekday = weekday_names[current.weekday()]
+    return current, weekday
+
+
+def is_day_closed_for_person(state, person_internal: str) -> bool:
+    """Prüft, ob eine Person den Tag abgeschlossen hat."""
+    day = state["day"]
+    done_all = all(state["done"][person_internal].get(ex, False) for ex in EXERCISES)
+    skipped = day in state["skip"].get(person_internal, [])
+    injured = day in state["injured"].get(person_internal, [])
+    cant = day in state["cant"].get(person_internal, [])
+    return done_all or skipped or injured or cant
+
+
+def _normalize_role(role_raw: str) -> str:
+    role = (role_raw or "").lower()
+    if role not in ROLE_TO_INTERNAL:
+        role = "mann"
+    return role
+
+
+def _build_totals(state):
+    """Aggregierte Totals für Frontend aufbereiten."""
+    totals = {}
+    for internal in ["male", "female"]:
+        role_label = INTERNAL_TO_ROLE[internal]
+        overall = state["overall"].get(internal, {})
+        skip_days = len(state["skip"].get(internal, []))
+        cant_days = len(state["cant"].get(internal, []))
+        injured_days = len(state["injured"].get(internal, []))
+
+        totals[role_label] = {
+            "crunches": int(overall.get("situps", 0)),
+            "pushups": int(overall.get("pushups", 0)),
+            "squats": int(overall.get("squats", 0)),
+            "skip_days": int(skip_days),
+            "cant_days": int(cant_days),
+            "injured_days": int(injured_days),
+        }
+    return totals
+
+
+def _build_reps_today(state):
+    reps_today = {}
+    for internal in ["male", "female"]:
+        role_label = INTERNAL_TO_ROLE[internal]
+        reps = state["reps"].get(internal, {})
+        reps_today[role_label] = {
+            "crunches": int(reps.get("situps", START_REPS)),
+            "pushups": int(reps.get("pushups", START_REPS)),
+            "squats": int(reps.get("squats", START_REPS)),
+        }
+    return reps_today
+
+
+def _build_status(state):
+    day = state["day"]
+    status = {}
+    for internal in ["male", "female"]:
+        role_label = INTERNAL_TO_ROLE[internal]
+        done = state["done"].get(internal, {})
+        status[role_label] = {
+            "crunches_done": bool(done.get("situps", False)),
+            "pushups_done": bool(done.get("pushups", False)),
+            "squats_done": bool(done.get("squats", False)),
+            "skip": day in state["skip"].get(internal, []),
+            "injured": day in state["injured"].get(internal, []),
+            "cant": day in state["cant"].get(internal, []),
+        }
+    return status
+
+
+def _build_can_flags(state):
+    """Berechnet, ob skip/cant laut Regeln erlaubt wäre."""
+    day = state["day"]
+    can_skip = {}
+    can_cant = {}
+
+    for internal in ["male", "female"]:
+        role_label = INTERNAL_TO_ROLE[internal]
+
+        # Skip: Abstand seit letztem Skip
+        skip_days = state["skip"].get(internal, [])
+        last_skip = max(skip_days) if skip_days else None
+        allow_skip = True
+        if last_skip is not None and (day - last_skip) < SKIP_MIN_DAYS:
+            allow_skip = False
+        if is_day_closed_for_person(state, internal):
+            allow_skip = False
+
+        # Cant: Abstand seit letztem Cant
+        cant_days = state["cant"].get(internal, [])
+        last_cant = max(cant_days) if cant_days else None
+        allow_cant = True
+        if last_cant is not None and (day - last_cant) < CANT_MIN_DAYS:
+            allow_cant = False
+        if is_day_closed_for_person(state, internal):
+            allow_cant = False
+
+        can_skip[role_label] = allow_skip
+        can_cant[role_label] = allow_cant
+
+    return can_skip, can_cant
+
+
+def _build_phrase_category(state) -> str:
+    """Bestimmt die Kategorie für den Tages-Spruch."""
+    day = state["day"]
+
+    # Flags pro Person
+    flags = {}
+    for internal in ["male", "female"]:
+        flags[internal] = {
+            "cheater": day in state["cheater"].get(internal, []),
+            "injured": day in state["injured"].get(internal, []),
+            "cant": day in state["cant"].get(internal, []),
+            "skip": day in state["skip"].get(internal, []),
+            "done_all": all(state["done"][internal].get(ex, False) for ex in EXERCISES),
         }
 
-        .date-main {
-            font-size: 1.4rem;
-            font-weight: 600;
-        }
-
-        .date-sub {
-            font-size: 0.9rem;
-            color: #9ca3af;
-        }
-
-        .role-block {
-            text-align: right;
-        }
-
-        .role-label {
-            font-size: 1.1rem;
-            font-weight: 600;
-        }
-
-        .role-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 0.85rem;
-            background: rgba(148, 163, 184, 0.16);
-            color: #e5e7eb;
-        }
-
-        .role-chip span.icon {
-            font-size: 1.1rem;
-        }
-
-        .card {
-            background: rgba(15, 23, 42, 0.9);
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
-            border: 1px solid rgba(55, 65, 81, 0.7);
-        }
-
-        .card-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: baseline;
-            margin-bottom: 6px;
-        }
-
-        .card-title {
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .card-sub {
-            font-size: 0.8rem;
-            color: #9ca3af;
-        }
-
-        .totals-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 8px;
-            margin-top: 6px;
-        }
-
-        .totals-item {
-            font-size: 0.85rem;
-            color: #d1d5db;
-        }
-
-        .totals-label {
-            color: #9ca3af;
-            font-size: 0.78rem;
-        }
-
-        .totals-value {
-            font-weight: 600;
-            margin-top: 2px;
-        }
-
-        .exercises {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 10px;
-        }
-
-        .exercise-card {
-            background: rgba(15, 23, 42, 0.95);
-            border-radius: 10px;
-            padding: 10px;
-            border: 1px solid rgba(55, 65, 81, 0.7);
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .exercise-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .exercise-name {
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .exercise-reps {
-            font-size: 0.85rem;
-            color: #9ca3af;
-        }
-
-        .exercise-action-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            margin-top: 4px;
-            padding: 6px 8px;
-            font-size: 0.85rem;
-            border-radius: 999px;
-            border: none;
-            cursor: pointer;
-            background: rgba(22, 163, 74, 0.12);
-            color: #bbf7d0;
-        }
-
-        .exercise-action-btn.done {
-            background: rgba(22, 163, 74, 0.35);
-            color: #ecfdf5;
-        }
-
-        .exercise-action-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .exercise-action-btn span.icon {
-            font-size: 1rem;
-        }
-
-        .status-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .status-btn {
-            flex: 1 1 120px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            padding: 8px;
-            font-size: 0.85rem;
-            border-radius: 999px;
-            border: none;
-            cursor: pointer;
-            white-space: nowrap;
-        }
-
-        .status-btn.skip {
-            background: rgba(234, 179, 8, 0.12);
-            color: #facc15;
-        }
-
-        .status-btn.injured {
-            background: rgba(220, 38, 38, 0.16);
-            color: #fecaca;
-        }
-
-        .status-btn.cant {
-            background: rgba(59, 130, 246, 0.18);
-            color: #bfdbfe;
-        }
-
-        .status-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .status-btn span.icon {
-            font-size: 1.1rem;
-        }
-
-        .message-bar {
-            margin-top: 10px;
-            font-size: 0.85rem;
-            padding: 8px 10px;
-            border-radius: 8px;
-        }
-
-        .message-info {
-            background: rgba(59, 130, 246, 0.12);
-            border: 1px solid rgba(59, 130, 246, 0.4);
-            color: #bfdbfe;
-        }
-
-        .message-error {
-            background: rgba(220, 38, 38, 0.14);
-            border: 1px solid rgba(239, 68, 68, 0.6);
-            color: #fecaca;
-        }
-
-        .message-success {
-            background: rgba(22, 163, 74, 0.12);
-            border: 1px solid rgba(34, 197, 94, 0.5);
-            color: #bbf7d0;
-        }
-
-        .phrase-card {
-            font-size: 0.9rem;
-            padding: 10px 12px;
-            border-radius: 10px;
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px dashed rgba(148, 163, 184, 0.7);
-            margin-top: 10px;
-        }
-
-        .phrase-label {
-            font-size: 0.78rem;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            color: #9ca3af;
-            margin-bottom: 4px;
-        }
-
-        .phrase-text {
-            font-size: 0.95rem;
-        }
-
-        .flex-row {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .badge {
-            padding: 2px 8px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            background: rgba(148, 163, 184, 0.2);
-            color: #e5e7eb;
-        }
-
-        .cheater-badge {
-            background: rgba(248, 113, 113, 0.18);
-            color: #fecaca;
-        }
-
-        .small {
-            font-size: 0.8rem;
-        }
-
-        @media (max-width: 600px) {
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .role-block {
-                text-align: left;
-            }
-        }
-    </style>
-</head>
-<body data-role="{{ role }}" data-male-name="{{ male_name }}" data-female-name="{{ female_name }}">
-<div class="app">
-    <header>
-        <div class="date-block">
-            <div class="date-main">
-                <span id="weekdayLabel">–</span>,
-                <span id="dateLabel">–</span>
-            </div>
-            <div class="date-sub">
-                Tag <span id="dayLabel">–</span> seit <span id="startDateLabel">–</span>
-            </div>
-        </div>
-        <div class="role-block">
-            <div class="role-label" id="roleTitle">–</div>
-            <div class="role-chip">
-                <span class="icon">💪</span>
-                <span id="roleDesc">–</span>
-            </div>
-        </div>
-    </header>
-
-    <!-- Totals -->
-    <section class="card" id="totalsCard">
-        <div class="card-header">
-            <div class="card-title">
-                Gesamt-Übersicht <span class="small">seit <span id="totalsStartLabel">–</span></span>
-            </div>
-        </div>
-        <div class="totals-grid">
-            <div class="totals-item">
-                <div class="totals-label">Reps {{ male_name }} (Crunches / Pushups / Squats)</div>
-                <div class="totals-value" id="totalsMaleReps">– / – / –</div>
-            </div>
-            <div class="totals-item">
-                <div class="totals-label">Reps {{ female_name }} (Crunches / Pushups / Squats)</div>
-                <div class="totals-value" id="totalsFemaleReps">– / – / –</div>
-            </div>
-            <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ male_name }} (Skip / „Ich kann nicht mehr“ / Krank)</div>
-                <div class="totals-value" id="totalsMaleSpecial">– / – / –</div>
-            </div>
-            <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ female_name }} (Skip / „Ich kann nicht mehr“ / Krank)</div>
-                <div class="totals-value" id="totalsFemaleSpecial">– / – / –</div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Exercises & actions -->
-    <section class="card">
-        <div class="card-header">
-            <div class="card-title">
-                Heutige Einheit <span class="small">(für <span id="currentNameLabel">–</span>)</span>
-            </div>
-            <div class="card-sub" id="repsSummary">–</div>
-        </div>
-
-        <div class="exercises">
-            <div class="exercise-card" id="card-crunches">
-                <div class="exercise-header">
-                    <div class="exercise-name">Crunches</div>
-                    <div class="exercise-reps"><span id="reps-crunches">–</span> Wiederholungen</div>
-                </div>
-                <button class="exercise-action-btn" id="btn-crunches" type="button">
-                    <span class="icon">✅</span>
-                    <span class="label">erledigt</span>
-                </button>
-            </div>
-
-            <div class="exercise-card" id="card-pushups">
-                <div class="exercise-header">
-                    <div class="exercise-name">Pushups</div>
-                    <div class="exercise-reps"><span id="reps-pushups">–</span> Wiederholungen</div>
-                </div>
-                <button class="exercise-action-btn" id="btn-pushups" type="button">
-                    <span class="icon">✅</span>
-                    <span class="label">erledigt</span>
-                </button>
-            </div>
-
-            <div class="exercise-card" id="card-squats">
-                <div class="exercise-header">
-                    <div class="exercise-name">Squats</div>
-                    <div class="exercise-reps"><span id="reps-squats">–</span> Wiederholungen</div>
-                </div>
-                <button class="exercise-action-btn" id="btn-squats" type="button">
-                    <span class="icon">✅</span>
-                    <span class="label">erledigt</span>
-                </button>
-            </div>
-        </div>
-
-        <div class="status-row">
-            <button class="status-btn injured" id="btn-injured" type="button">
-                <span class="icon">❌</span>
-                <span>Krank / verletzt</span>
-            </button>
-            <button class="status-btn skip" id="btn-skip" type="button">
-                <span class="icon">😴</span>
-                <span>Skip (fauler Tag)</span>
-            </button>
-            <button class="status-btn cant" id="btn-cant" type="button">
-                <span class="icon">🥵</span>
-                <span>Ich kann nicht mehr</span>
-            </button>
-        </div>
-
-        <div id="messageBox" class="message-bar" style="display:none;"></div>
-    </section>
-
-    <!-- Phrase of the day -->
-    <section class="phrase-card">
-        <div class="phrase-label">
-            Kommentar des Tages
-            <span id="phraseCategoryBadge" class="badge" style="margin-left:6px;">–</span>
-        </div>
-        <div class="phrase-text" id="phraseText">
-            …
-        </div>
-    </section>
-
-</div>
-
-<script>
-    // simple ES5 helper, kein fancy Kram
-    (function () {
-        var role = document.body.getAttribute('data-role');
-        var maleName = document.body.getAttribute('data-male-name');
-        var femaleName = document.body.getAttribute('data-female-name');
-
-        var stateData = null;
-        var phrasesData = null;
-
-        var stateLoaded = false;
-        var phrasesLoaded = false;
-
-        function xhrGet(url, callback) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var json = JSON.parse(xhr.responseText);
-                            callback(null, json);
-                        } catch (e) {
-                            callback(e);
-                        }
-                    } else {
-                        callback(new Error('HTTP ' + xhr.status));
-                    }
-                }
-            };
-            xhr.send();
-        }
-
-        function xhrPost(url, body, callback) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var json = JSON.parse(xhr.responseText);
-                            callback(null, json);
-                        } catch (e) {
-                            callback(e);
-                        }
-                    } else {
-                        callback(new Error('HTTP ' + xhr.status));
-                    }
-                }
-            };
-            xhr.send(JSON.stringify(body));
-        }
-
-        function showMessage(text, type) {
-            var box = document.getElementById('messageBox');
-            if (!text) {
-                box.style.display = 'none';
-                box.className = 'message-bar';
-                box.innerHTML = '';
-                return;
-            }
-            var cls = 'message-bar ';
-            if (type === 'error') {
-                cls += 'message-error';
-            } else if (type === 'success') {
-                cls += 'message-success';
-            } else {
-                cls += 'message-info';
-            }
-            box.className = cls;
-            box.textContent = text;
-            box.style.display = 'block';
-        }
-
-        function pickDeterministic(phrasesArray, day, salt) {
-            if (!phrasesArray || !phrasesArray.length) {
-                return "";
-            }
-            var len = phrasesArray.length;
-            var idx = ((day - 1) + salt) % len;
-            return phrasesArray[idx];
-        }
-
-        function getPhraseCategoryLabel(cat) {
-            if (cat === 'none_done') return 'Keiner fertig';
-            if (cat === 'one_done') return 'Nur eine/r fertig';
-            if (cat === 'all_done') return 'Beide fertig';
-            if (cat === 'skip') return 'Skip-Tag';
-            if (cat === 'cant') return 'Ich kann nicht mehr';
-            if (cat === 'injured') return 'Krank / verletzt';
-            if (cat === 'cheater') return 'Cheater-Alarm';
-            return cat || 'Unbekannt';
-        }
-
-        function updatePhrase() {
-            if (!stateData || !phrasesData) {
-                return;
-            }
-
-            var day = stateData.day || 1;
-            var category = stateData.phrase_category || 'none_done';
-
-            var phraseArray = phrasesData[category];
-            var salt = 0;
-            if (category === 'one_done') { salt = 1; }
-            else if (category === 'all_done') { salt = 2; }
-            else if (category === 'skip') { salt = 3; }
-            else if (category === 'cant') { salt = 4; }
-            else if (category === 'injured') { salt = 5; }
-            else if (category === 'cheater') { salt = 6; }
-
-            var phrase = pickDeterministic(phraseArray, day, salt);
-
-            var labelEl = document.getElementById('phraseCategoryBadge');
-            var textEl = document.getElementById('phraseText');
-
-            labelEl.textContent = getPhraseCategoryLabel(category);
-            if (category === 'cheater') {
-                labelEl.className = 'badge cheater-badge';
-            } else {
-                labelEl.className = 'badge';
-            }
-
-            textEl.textContent = phrase || '…';
-        }
-
-        function updateUI() {
-            if (!stateData) {
-                return;
-            }
-
-            // Header
-            document.getElementById('weekdayLabel').textContent = stateData.weekday || '–';
-            document.getElementById('dateLabel').textContent = stateData.date || '–';
-            document.getElementById('dayLabel').textContent = stateData.day || '–';
-
-            document.getElementById('startDateLabel').textContent = stateData.start_date || '–';
-            document.getElementById('totalsStartLabel').textContent = stateData.start_date || '–';
-
-            var roleTitle = document.getElementById('roleTitle');
-            var roleDesc = document.getElementById('roleDesc');
-            var currentNameLabel = document.getElementById('currentNameLabel');
-
-            if (role === 'mann') {
-                roleTitle.textContent = maleName + " – deine Seite";
-                roleDesc.textContent = "Nur du kannst hier abhaken.";
-                currentNameLabel.textContent = maleName;
-            } else {
-                roleTitle.textContent = femaleName + " – deine Seite";
-                roleDesc.textContent = "Nur du kannst hier abhaken.";
-                currentNameLabel.textContent = femaleName;
-            }
-
-            // Totals erwartet Struktur:
-            // stateData.totals = {
-            //   mann: { crunches, pushups, squats, skip_days, cant_days, injured_days, reductions },
-            //   frau: { ... }
-            // }
-            var totals = stateData.totals || {};
-            var tM = totals.mann || {};
-            var tF = totals.frau || {};
-
-            var maleRepsText = (tM.crunches || 0) + " / " + (tM.pushups || 0) + " / " + (tM.squats || 0);
-            var femaleRepsText = (tF.crunches || 0) + " / " + (tF.pushups || 0) + " / " + (tF.squats || 0);
-
-            document.getElementById('totalsMaleReps').textContent = maleRepsText;
-            document.getElementById('totalsFemaleReps').textContent = femaleRepsText;
-
-            var maleSpecial = (tM.skip_days || 0) + " / " + (tM.cant_days || 0) + " / " + (tM.injured_days || 0);
-            var femaleSpecial = (tF.skip_days || 0) + " / " + (tF.cant_days || 0) + " / " + (tF.injured_days || 0);
-
-            document.getElementById('totalsMaleSpecial').textContent = maleSpecial;
-            document.getElementById('totalsFemaleSpecial').textContent = femaleSpecial;
-
-            // Heutige Reps (für aktuelle Rolle)
-            // erwartet:
-            // stateData.reps_today = {
-            //   mann: { crunches, pushups, squats },
-            //   frau: { crunches, pushups, squats }
-            // }
-            var repsToday = stateData.reps_today || {};
-            var myReps = repsToday[role] || {};
-
-            var rCrunch = myReps.crunches || 0;
-            var rPush = myReps.pushups || 0;
-            var rSquat = myReps.squats || 0;
-
-            document.getElementById('reps-crunches').textContent = rCrunch;
-            document.getElementById('reps-pushups').textContent = rPush;
-            document.getElementById('reps-squats').textContent = rSquat;
-
-            document.getElementById('repsSummary').textContent =
-                rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats";
-
-            // Status der heutigen Einheit für aktuelle Rolle
-            // erwartet:
-            // stateData.status = {
-            //   mann: { crunches_done, pushups_done, squats_done, skip, injured, cant },
-            //   frau: { ... }
-            // }
-            var statusAll = stateData.status || {};
-            var myStatus = statusAll[role] || {};
-
-            function updateExerciseButton(id, done) {
-                var btn = document.getElementById('btn-' + id);
-                if (!btn) return;
-                if (done) {
-                    btn.className = "exercise-action-btn done";
-                    btn.querySelector('.label').textContent = "erledigt ✔";
-                } else {
-                    btn.className = "exercise-action-btn";
-                    btn.querySelector('.label').textContent = "erledigt";
-                }
-            }
-
-            updateExerciseButton('crunches', !!myStatus.crunches_done);
-            updateExerciseButton('pushups', !!myStatus.pushups_done);
-            updateExerciseButton('squats', !!myStatus.squats_done);
-
-            // Skip / Krank / Cant Buttons sperren je nach Regeln
-            var btnSkip = document.getElementById('btn-skip');
-            var btnInj = document.getElementById('btn-injured');
-            var btnCant = document.getElementById('btn-cant');
-
-            // erwartet vom Backend:
-            // stateData.can_skip[role] = bool
-            // stateData.can_cant[role] = bool
-            var canSkipAll = stateData.can_skip || {};
-            var canCantAll = stateData.can_cant || {};
-
-            var canSkip = typeof canSkipAll[role] === 'boolean' ? canSkipAll[role] : true;
-            var canCant = typeof canCantAll[role] === 'boolean' ? canCantAll[role] : true;
-
-            btnSkip.disabled = !canSkip;
-            btnCant.disabled = !canCant;
-
-            // bei bereits gesetztem skip/krank/cant: Buttons deaktivieren
-            if (myStatus.skip) {
-                btnSkip.disabled = true;
-            }
-            if (myStatus.injured) {
-                btnInj.disabled = true;
-            }
-            if (myStatus.cant) {
-                btnCant.disabled = true;
-            }
-
-            // Cheater-Flag / Message
-            if (stateData.cheater) {
-                showMessage(stateData.cheater_message || "Cheater-Versuch erkannt. Nice try, aber nein.", "error");
-            } else if (stateData.message) {
-                showMessage(stateData.message, "info");
-            } else {
-                showMessage("", "");
-            }
-
-            // Phrase aktualisieren
-            updatePhrase();
-        }
-
-        function loadState() {
-            xhrGet('/api/state?role=' + encodeURIComponent(role), function (err, data) {
-                if (err) {
-                    showMessage("Fehler beim Laden des Status: " + err.message, "error");
-                    return;
-                }
-                stateData = data;
-                stateLoaded = true;
-                updateUI();
-            });
-        }
-
-        function loadPhrases() {
-            xhrGet('{{ url_for("static", filename="phrases.json") }}', function (err, data) {
-                if (err) {
-                    showMessage("Fehler beim Laden der Sprüche: " + err.message, "error");
-                    return;
-                }
-                phrasesData = data;
-                phrasesLoaded = true;
-                updatePhrase();
-            });
-        }
-
-        function sendAction(type, extra) {
-            var body = {
-                role: role,
-                action: type
-            };
-            if (extra) {
-                var k;
-                for (k in extra) {
-                    if (extra.hasOwnProperty(k)) {
-                        body[k] = extra[k];
-                    }
-                }
-            }
-
-            xhrPost('/api/action', body, function (err, data) {
-                if (err) {
-                    showMessage("Aktion fehlgeschlagen: " + err.message, "error");
-                    return;
-                }
-                stateData = data;
-                updateUI();
-            });
-        }
-
-        function askCantPassword(callback) {
-            var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr“ zu bestätigen:");
-            if (pw === null) {
-                return; // abgebrochen
-            }
-            callback(pw);
-        }
-
-        function bindEvents() {
-            var btnCrunch = document.getElementById('btn-crunches');
-            var btnPush = document.getElementById('btn-pushups');
-            var btnSquat = document.getElementById('btn-squats');
-            var btnSkip = document.getElementById('btn-skip');
-            var btnInj = document.getElementById('btn-injured');
-            var btnCant = document.getElementById('btn-cant');
-
-            if (btnCrunch) {
-                btnCrunch.onclick = function () {
-                    sendAction('exercise', { exercise: 'crunches' });
-                };
-            }
-            if (btnPush) {
-                btnPush.onclick = function () {
-                    sendAction('exercise', { exercise: 'pushups' });
-                };
-            }
-            if (btnSquat) {
-                btnSquat.onclick = function () {
-                    sendAction('exercise', { exercise: 'squats' });
-                };
-            }
-            if (btnSkip) {
-                btnSkip.onclick = function () {
-                    sendAction('skip', {});
-                };
-            }
-            if (btnInj) {
-                btnInj.onclick = function () {
-                    sendAction('injured', {});
-                };
-            }
-            if (btnCant) {
-                btnCant.onclick = function () {
-                    askCantPassword(function (pw) {
-                        sendAction('cant', { password: pw });
-                    });
-                };
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            bindEvents();
-            loadState();
-            loadPhrases();
-        });
-    })();
-</script>
-</body>
-</html>
+    # Priorität: Cheater > Injured > Cant > Skip > Done-Status
+    if any(flags[p]["cheater"] for p in flags):
+        return "cheater"
+    if any(flags[p]["injured"] for p in flags):
+        return "injured"
+    if any(flags[p]["cant"] for p in flags):
+        return "cant"
+    if any(flags[p]["skip"] for p in flags):
+        return "skip"
+
+    # beide fertig?
+    done_male = flags["male"]["done_all"]
+    done_female = flags["female"]["done_all"]
+    if done_male and done_female:
+        return "all_done"
+    if done_male or done_female:
+        return "one_done"
+    return "none_done"
+
+
+def _build_client_state(state, role_view: str, message: str | None = None):
+    """Baut das JSON, das das Frontend erwartet."""
+    current_date, weekday = calculate_current_date(state)
+    date_str = current_date.strftime("%d.%m.%Y")
+
+    totals = _build_totals(state)
+    reps_today = _build_reps_today(state)
+    status = _build_status(state)
+    can_skip, can_cant = _build_can_flags(state)
+    phrase_category = _build_phrase_category(state)
+
+    # Cheater-Flag nur für die aktive Rolle
+    internal = ROLE_TO_INTERNAL.get(role_view, "male")
+    day = state["day"]
+    cheater_today = day in state["cheater"].get(internal, [])
+
+    response = {
+        "weekday": weekday,
+        "date": date_str,
+        "day": int(state.get("day", 1)),
+        "start_date": state.get("start_date"),
+        "totals": totals,
+        "reps_today": reps_today,
+        "status": status,
+        "can_skip": can_skip,
+        "can_cant": can_cant,
+        "phrase_category": phrase_category,
+        "cheater": bool(cheater_today),
+        "cheater_message": "Cheater-Versuch erkannt. Nice try, aber nein."
+        if cheater_today
+        else "",
+        "message": message or "",
+    }
+    return response
+
+
+def _apply_exercise(state, internal_person: str, internal_exercise: str):
+    """Setzt eine Übung auf erledigt und erhöht die Overall-Reps."""
+    if internal_exercise not in EXERCISES:
+        raise ValueError("Ungültige Übung")
+
+    if internal_person not in ["male", "female"]:
+        raise ValueError("Ungültige Person")
+
+    # idempotent: wenn schon erledigt, nichts tun
+    if state["done"][internal_person].get(internal_exercise):
+        return state, False
+
+    state["done"][internal_person][internal_exercise] = True
+    reps_today = state["reps"][internal_person][internal_exercise]
+    state["overall"][internal_person][internal_exercise] += reps_today
+    return state, True
+
+
+def _apply_skip(state, internal_person: str):
+    day = state["day"]
+    skip_days = state["skip"].get(internal_person, [])
+    last_skip_day = max(skip_days) if skip_days else None
+
+    # zu früh -> Cheater
+    if last_skip_day is not None and (day - last_skip_day) < SKIP_MIN_DAYS:
+        cheater_days = state["cheater"].setdefault(internal_person, [])
+        if day not in cheater_days:
+            cheater_days.append(day)
+        return state, "cheater_skip"
+
+    if day not in skip_days:
+        skip_days.append(day)
+        state["skip"][internal_person] = skip_days
+
+    return state, "ok"
+
+
+def _apply_injured(state, internal_person: str):
+    day = state["day"]
+    injured_days = state["injured"].get(internal_person, [])
+    if day not in injured_days:
+        injured_days.append(day)
+        state["injured"][internal_person] = injured_days
+    return state, "ok"
+
+
+def _apply_cant(state, internal_person: str, password: str):
+    if password != CANT_PASSWORD:
+        return state, "wrong_password"
+
+    day = state["day"]
+    cant_days = state["cant"].get(internal_person, [])
+    last_cant_day = max(cant_days) if cant_days else None
+
+    # zu früh -> Cheater
+    if last_cant_day is not None and (day - last_cant_day) < CANT_MIN_DAYS:
+        cheater_days = state["cheater"].setdefault(internal_person, [])
+        if day not in cheater_days:
+            cheater_days.append(day)
+        return state, "cheater_cant"
+
+    if day not in cant_days:
+        cant_days.append(day)
+        state["cant"][internal_person] = cant_days
+
+    # Reps reduzieren
+    for ex in EXERCISES:
+        current_reps = state["reps"][internal_person].get(ex, START_REPS)
+        new_reps = max(1, current_reps - CANT_REDUCTION)
+        state["reps"][internal_person][ex] = new_reps
+
+    return state, "ok"
+
+
+@app.route("/")
+def index():
+    view_raw = (request.args.get("view") or "").lower()
+    if view_raw in ("frau", "female", "f"):
+        role = "frau"
+    else:
+        role = "mann"
+
+    male_name = (
+        request.args.get("male_name")
+        or request.args.get("mann")
+        or DEFAULT_MALE_NAME
+    )
+    female_name = (
+        request.args.get("female_name")
+        or request.args.get("frau")
+        or DEFAULT_FEMALE_NAME
+    )
+
+    return render_template(
+        "index.html",
+        role=role,
+        male_name=male_name,
+        female_name=female_name,
+    )
+
+
+@app.route("/api/state")
+def api_state():
+    role_view = _normalize_role(request.args.get("role"))
+    state = load_state()
+    response = _build_client_state(state, role_view)
+    return jsonify(response)
+
+
+@app.route("/api/action", methods=["POST"])
+def api_action():
+    data = request.get_json(force=True) or {}
+    role_view = _normalize_role(data.get("role"))
+    action = data.get("action")
+    state = load_state()
+
+    internal_person = ROLE_TO_INTERNAL[role_view]
+
+    message = ""
+
+    try:
+        if action == "exercise":
+            exercise_external = data.get("exercise")
+            if exercise_external not in EXTERNAL_TO_INTERNAL_EXERCISE:
+                return jsonify({"error": "Ungültige Übung"}), 400
+            internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
+            state, changed = _apply_exercise(state, internal_person, internal_ex)
+            if changed:
+                message = f"{exercise_external.capitalize()} erledigt."
+            else:
+                message = f"{exercise_external.capitalize()} war bereits erledigt."
+
+        elif action == "skip":
+            state, status = _apply_skip(state, internal_person)
+            if status == "cheater_skip":
+                message = "Skip zu früh – Cheater erkannt."
+            else:
+                message = "Skip-Tag gesetzt. Heute offiziell faul."
+
+        elif action == "injured":
+            state, _ = _apply_injured(state, internal_person)
+            message = "Tag als krank/verletzt markiert."
+
+        elif action == "cant":
+            password = data.get("password", "")
+            state, status = _apply_cant(state, internal_person, password)
+            if status == "wrong_password":
+                # State wurde nicht verändert – alten State erneut laden
+                state = load_state()
+                resp = _build_client_state(state, role_view, "Falsches Passwort für „Ich kann nicht mehr“.")
+                return jsonify(resp), 403
+            elif status == "cheater_cant":
+                message = "„Ich kann nicht mehr“ zu früh – Cheater erkannt."
+            else:
+                message = "Reps reduziert. Heute war's hart genug."
+
+        else:
+            return jsonify({"error": "Ungültige Aktion"}), 400
+
+    finally:
+        # State nur speichern, wenn keine harte Validierungs-Exception
+        save_state(state)
+
+    resp = _build_client_state(state, role_view, message)
+    return jsonify(resp)
+
+
+@app.route("/api/nextday", methods=["POST"])
+def api_nextday():
+    """Wechsel zum nächsten Tag – wird aktuell im Frontend nicht verwendet,
+    bleibt aber für Admin-/Debug-Zwecke verfügbar.
+    """
+    state = load_state()
+
+    # Prüfen, ob beide Personen den Tag abgeschlossen haben
+    for internal in ["male", "female"]:
+        if not is_day_closed_for_person(state, internal):
+            return (
+                jsonify({"error": f"{internal} ist für diesen Tag noch nicht fertig."}),
+                400,
+            )
+
+    # Nächster Tag
+    state["day"] += 1
+
+    # Done zurücksetzen und Reps erhöhen
+    for internal in ["male", "female"]:
+        for ex in EXERCISES:
+            state["done"][internal][ex] = False
+            state["reps"][internal][ex] += 1  # tägliche Steigerung
+
+    save_state(state)
+    # response aus Sicht "mann"
+    resp = _build_client_state(state, "mann", "Neuer Tag gestartet.")
+    return jsonify(resp)
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000, debug=False)
