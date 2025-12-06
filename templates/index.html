@@ -100,7 +100,7 @@
 
         .totals-grid {
             display: grid;
-            grid-template-columns: 1fr; /* immer Zeilen, keine Spalten */
+            grid-template-columns: 1fr;
             gap: 8px;
             margin-top: 6px;
         }
@@ -447,14 +447,13 @@
 </div>
 
 <script>
-    // simple ES5 helper, kein fancy Kram
     (function () {
         var role = document.body.getAttribute('data-role');
         var maleName = document.body.getAttribute('data-male-name');
         var femaleName = document.body.getAttribute('data-female-name');
 
         var stateData = null;
-        var phrasesData = null;
+        var phrasesCache = {}; // category -> array
 
         function xhrGet(url, callback) {
             var xhr = new XMLHttpRequest();
@@ -529,45 +528,67 @@
 
         function getPhraseCategoryLabel(cat) {
             if (cat === 'none_done') return 'Keiner fertig';
-            if (cat === 'one_done') return 'Nur eine/r fertig';
             if (cat === 'all_done') return 'Beide fertig';
-            if (cat === 'skip') return 'Skip-Tag';
-            if (cat === 'cant') return 'Ich kann nicht mehr!';
-            if (cat === 'injured') return 'krank / verletzt';
-            if (cat === 'cheater') return 'Cheater-Alarm';
+            if (cat.indexOf('one_done_') === 0) return 'Nur einer fertig';
+            if (cat.indexOf('skip_') === 0) return 'Skip-Tag';
+            if (cat.indexOf('cant_') === 0) return 'Ich kann nicht mehr!';
+            if (cat.indexOf('injured_') === 0) return 'krank / verletzt';
+            if (cat.indexOf('cheater_') === 0) return 'Cheater-Alarm';
             return cat || 'Unbekannt';
         }
 
+        function loadPhraseCategory(category, cb) {
+            if (phrasesCache.hasOwnProperty(category)) {
+                cb(null, phrasesCache[category]);
+                return;
+            }
+            var url = '/static/phrases/' + encodeURIComponent(category) + '.json';
+            xhrGet(url, function (err, data) {
+                if (err) {
+                    cb(err);
+                    return;
+                }
+                // data sollte ein Array sein
+                phrasesCache[category] = data;
+                cb(null, data);
+            });
+        }
+
         function updatePhrase() {
-            if (!stateData || !phrasesData) {
+            if (!stateData || !stateData.phrase_category) {
                 return;
             }
 
             var day = stateData.day || 1;
-            var category = stateData.phrase_category || 'none_done';
+            var category = stateData.phrase_category;
 
-            var phraseArray = phrasesData[category];
-            var salt = 0;
-            if (category === 'one_done') { salt = 1; }
-            else if (category === 'all_done') { salt = 2; }
-            else if (category === 'skip') { salt = 3; }
-            else if (category === 'cant') { salt = 4; }
-            else if (category === 'injured') { salt = 5; }
-            else if (category === 'cheater') { salt = 6; }
+            loadPhraseCategory(category, function (err, phrasesArray) {
+                var labelEl = document.getElementById('phraseCategoryBadge');
+                var textEl = document.getElementById('phraseText');
 
-            var phrase = pickDeterministic(phraseArray, day, salt);
+                labelEl.textContent = getPhraseCategoryLabel(category);
+                if (category.indexOf('cheater_') === 0) {
+                    labelEl.className = 'badge cheater-badge';
+                } else {
+                    labelEl.className = 'badge';
+                }
 
-            var labelEl = document.getElementById('phraseCategoryBadge');
-            var textEl = document.getElementById('phraseText');
+                if (err) {
+                    textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
+                    return;
+                }
 
-            labelEl.textContent = getPhraseCategoryLabel(category);
-            if (category === 'cheater') {
-                labelEl.className = 'badge cheater-badge';
-            } else {
-                labelEl.className = 'badge';
-            }
+                var salt = 0;
+                if (category.indexOf('one_done_') === 0) { salt = 1; }
+                else if (category === 'all_done') { salt = 2; }
+                else if (category.indexOf('skip_') === 0) { salt = 3; }
+                else if (category.indexOf('cant_') === 0) { salt = 4; }
+                else if (category.indexOf('injured_') === 0) { salt = 5; }
+                else if (category.indexOf('cheater_') === 0) { salt = 6; }
 
-            textEl.textContent = phrase || '…';
+                var phrase = pickDeterministic(phrasesArray, day, salt);
+                textEl.textContent = phrase || '…';
+            });
         }
 
         function buildHumanStatus(statusObj) {
@@ -593,7 +614,6 @@
                 return;
             }
 
-            // Header
             document.getElementById('weekdayLabel').textContent = stateData.weekday || '–';
             document.getElementById('dateLabel').textContent = stateData.date || '–';
             document.getElementById('dayLabel').textContent = stateData.day || '–';
@@ -620,7 +640,6 @@
                 currentNameLabel.textContent = femaleName;
             }
 
-            // Totals
             var totals = stateData.totals || {};
             var tM = totals.mann || {};
             var tF = totals.frau || {};
@@ -637,7 +656,6 @@
             document.getElementById('totalsMaleSpecial').textContent = maleSpecial;
             document.getElementById('totalsFemaleSpecial').textContent = femaleSpecial;
 
-            // Heutige Reps (für aktuelle Rolle)
             var repsToday = stateData.reps_today || {};
             var myReps = repsToday[role] || {};
 
@@ -652,7 +670,6 @@
             document.getElementById('repsSummary').textContent =
                 rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats";
 
-            // Status der heutigen Einheit
             var statusAll = stateData.status || {};
             var myStatus = statusAll[role] || {};
             var otherStatus = statusAll[otherRole] || {};
@@ -673,7 +690,6 @@
             updateExerciseButton('pushups', !!myStatus.pushups_done);
             updateExerciseButton('squats', !!myStatus.squats_done);
 
-            // Andere Person – Fortschritt pro Übung anzeigen
             var otherCrunchEl = document.getElementById('other-crunches-status');
             var otherPushEl = document.getElementById('other-pushups-status');
             var otherSquatEl = document.getElementById('other-squats-status');
@@ -688,7 +704,6 @@
                 otherSquatEl.textContent = otherName + ": " + (otherStatus.squats_done ? "erledigt ✔" : "offen");
             }
 
-            // Skip / Krank / Cant Buttons sperren je nach Regeln
             var btnSkip = document.getElementById('btn-skip');
             var btnInj = document.getElementById('btn-injured');
             var btnCant = document.getElementById('btn-cant');
@@ -712,7 +727,6 @@
                 btnCant.disabled = true;
             }
 
-            // Zusammenfassung: eigener Status + anderer
             var statusSummary = document.getElementById('statusSummary');
             if (statusSummary) {
                 var myHuman = buildHumanStatus(myStatus);
@@ -720,7 +734,6 @@
                 statusSummary.textContent = "Du: " + myHuman + " • " + otherName + ": " + otherHuman;
             }
 
-            // Cheater-Flag / Message
             if (stateData.cheater) {
                 showMessage(stateData.cheater_message || "Cheater-Versuch erkannt. Nice try, aber nein.", "error");
             } else if (stateData.message) {
@@ -729,7 +742,6 @@
                 showMessage("", "");
             }
 
-            // Phrase aktualisieren
             updatePhrase();
         }
 
@@ -741,17 +753,6 @@
                 }
                 stateData = data;
                 updateUI();
-            });
-        }
-
-        function loadPhrases() {
-            xhrGet('{{ url_for("static", filename="phrases.json") }}', function (err, data) {
-                if (err) {
-                    showMessage("Fehler beim Laden der Sprüche: " + err.message, "error");
-                    return;
-                }
-                phrasesData = data;
-                updatePhrase();
             });
         }
 
@@ -782,7 +783,7 @@
         function askCantPassword(callback) {
             var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr!“ zu bestätigen:");
             if (pw === null) {
-                return; // abgebrochen
+                return;
             }
             callback(pw);
         }
@@ -832,7 +833,6 @@
         document.addEventListener('DOMContentLoaded', function () {
             bindEvents();
             loadState();
-            loadPhrases();
         });
     })();
 </script>
