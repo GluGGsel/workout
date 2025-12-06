@@ -100,7 +100,7 @@
 
         .totals-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            grid-template-columns: 1fr; /* immer Zeilen, keine Spalten */
             gap: 8px;
             margin-top: 6px;
         }
@@ -181,6 +181,12 @@
             font-size: 1rem;
         }
 
+        .exercise-other-status {
+            font-size: 0.78rem;
+            color: #9ca3af;
+            margin-top: 2px;
+        }
+
         .status-row {
             display: flex;
             flex-wrap: wrap;
@@ -224,6 +230,12 @@
 
         .status-btn span.icon {
             font-size: 1.1rem;
+        }
+
+        .status-summary {
+            margin-top: 8px;
+            font-size: 0.8rem;
+            color: #9ca3af;
         }
 
         .message-bar {
@@ -345,11 +357,11 @@
                 <div class="totals-value" id="totalsFemaleReps">– / – / –</div>
             </div>
             <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ male_name }} (Skip / „Ich kann nicht mehr“ / Krank)</div>
+                <div class="totals-label">Spezialtage {{ male_name }} (Skip / „Ich kann nicht mehr!“ / krank)</div>
                 <div class="totals-value" id="totalsMaleSpecial">– / – / –</div>
             </div>
             <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ female_name }} (Skip / „Ich kann nicht mehr“ / Krank)</div>
+                <div class="totals-label">Spezialtage {{ female_name }} (Skip / „Ich kann nicht mehr!“ / krank)</div>
                 <div class="totals-value" id="totalsFemaleSpecial">– / – / –</div>
             </div>
         </div>
@@ -374,6 +386,7 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
+                <div class="exercise-other-status" id="other-crunches-status"></div>
             </div>
 
             <div class="exercise-card" id="card-pushups">
@@ -385,6 +398,7 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
+                <div class="exercise-other-status" id="other-pushups-status"></div>
             </div>
 
             <div class="exercise-card" id="card-squats">
@@ -396,23 +410,26 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
+                <div class="exercise-other-status" id="other-squats-status"></div>
             </div>
         </div>
 
         <div class="status-row">
             <button class="status-btn injured" id="btn-injured" type="button">
                 <span class="icon">❌</span>
-                <span>Krank / verletzt</span>
+                <span>krank / verletzt</span>
             </button>
             <button class="status-btn skip" id="btn-skip" type="button">
                 <span class="icon">😴</span>
-                <span>Skip (fauler Tag)</span>
+                <span>Skip</span>
             </button>
             <button class="status-btn cant" id="btn-cant" type="button">
                 <span class="icon">🥵</span>
-                <span>Ich kann nicht mehr</span>
+                <span>Ich kann nicht mehr!</span>
             </button>
         </div>
+
+        <div id="statusSummary" class="status-summary"></div>
 
         <div id="messageBox" class="message-bar" style="display:none;"></div>
     </section>
@@ -420,8 +437,7 @@
     <!-- Phrase of the day -->
     <section class="phrase-card">
         <div class="phrase-label">
-            Kommentar des Tages
-            <span id="phraseCategoryBadge" class="badge" style="margin-left:6px;">–</span>
+            <span id="phraseCategoryBadge" class="badge">–</span>
         </div>
         <div class="phrase-text" id="phraseText">
             …
@@ -439,9 +455,6 @@
 
         var stateData = null;
         var phrasesData = null;
-
-        var stateLoaded = false;
-        var phrasesLoaded = false;
 
         function xhrGet(url, callback) {
             var xhr = new XMLHttpRequest();
@@ -519,8 +532,8 @@
             if (cat === 'one_done') return 'Nur eine/r fertig';
             if (cat === 'all_done') return 'Beide fertig';
             if (cat === 'skip') return 'Skip-Tag';
-            if (cat === 'cant') return 'Ich kann nicht mehr';
-            if (cat === 'injured') return 'Krank / verletzt';
+            if (cat === 'cant') return 'Ich kann nicht mehr!';
+            if (cat === 'injured') return 'krank / verletzt';
             if (cat === 'cheater') return 'Cheater-Alarm';
             return cat || 'Unbekannt';
         }
@@ -557,6 +570,24 @@
             textEl.textContent = phrase || '…';
         }
 
+        function buildHumanStatus(statusObj) {
+            if (!statusObj) return 'noch nichts gemacht';
+
+            if (statusObj.injured) return 'krank/verletzt';
+            if (statusObj.cant) return 'Ich kann nicht mehr!';
+            if (statusObj.skip) return 'Skip';
+
+            var doneCount = 0;
+            if (statusObj.crunches_done) doneCount++;
+            if (statusObj.pushups_done) doneCount++;
+            if (statusObj.squats_done) doneCount++;
+
+            if (doneCount === 0) return 'noch nichts gemacht';
+            if (doneCount === 3) return 'alle Übungen erledigt';
+
+            return 'teilweise erledigt';
+        }
+
         function updateUI() {
             if (!stateData) {
                 return;
@@ -567,12 +598,17 @@
             document.getElementById('dateLabel').textContent = stateData.date || '–';
             document.getElementById('dayLabel').textContent = stateData.day || '–';
 
-            document.getElementById('startDateLabel').textContent = stateData.start_date || '–';
-            document.getElementById('totalsStartLabel').textContent = stateData.start_date || '–';
+            var startDisplay = stateData.start_date_display || stateData.start_date || '–';
+            document.getElementById('startDateLabel').textContent = startDisplay;
+            document.getElementById('totalsStartLabel').textContent = startDisplay;
 
             var roleTitle = document.getElementById('roleTitle');
             var roleDesc = document.getElementById('roleDesc');
             var currentNameLabel = document.getElementById('currentNameLabel');
+
+            var otherRole = (role === 'mann') ? 'frau' : 'mann';
+            var myName = (role === 'mann') ? maleName : femaleName;
+            var otherName = (role === 'mann') ? femaleName : maleName;
 
             if (role === 'mann') {
                 roleTitle.textContent = maleName + " – deine Seite";
@@ -584,11 +620,7 @@
                 currentNameLabel.textContent = femaleName;
             }
 
-            // Totals erwartet Struktur:
-            // stateData.totals = {
-            //   mann: { crunches, pushups, squats, skip_days, cant_days, injured_days, reductions },
-            //   frau: { ... }
-            // }
+            // Totals
             var totals = stateData.totals || {};
             var tM = totals.mann || {};
             var tF = totals.frau || {};
@@ -606,11 +638,6 @@
             document.getElementById('totalsFemaleSpecial').textContent = femaleSpecial;
 
             // Heutige Reps (für aktuelle Rolle)
-            // erwartet:
-            // stateData.reps_today = {
-            //   mann: { crunches, pushups, squats },
-            //   frau: { crunches, pushups, squats }
-            // }
             var repsToday = stateData.reps_today || {};
             var myReps = repsToday[role] || {};
 
@@ -625,14 +652,10 @@
             document.getElementById('repsSummary').textContent =
                 rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats";
 
-            // Status der heutigen Einheit für aktuelle Rolle
-            // erwartet:
-            // stateData.status = {
-            //   mann: { crunches_done, pushups_done, squats_done, skip, injured, cant },
-            //   frau: { ... }
-            // }
+            // Status der heutigen Einheit
             var statusAll = stateData.status || {};
             var myStatus = statusAll[role] || {};
+            var otherStatus = statusAll[otherRole] || {};
 
             function updateExerciseButton(id, done) {
                 var btn = document.getElementById('btn-' + id);
@@ -650,14 +673,26 @@
             updateExerciseButton('pushups', !!myStatus.pushups_done);
             updateExerciseButton('squats', !!myStatus.squats_done);
 
+            // Andere Person – Fortschritt pro Übung anzeigen
+            var otherCrunchEl = document.getElementById('other-crunches-status');
+            var otherPushEl = document.getElementById('other-pushups-status');
+            var otherSquatEl = document.getElementById('other-squats-status');
+
+            if (otherCrunchEl) {
+                otherCrunchEl.textContent = otherName + ": " + (otherStatus.crunches_done ? "erledigt ✔" : "offen");
+            }
+            if (otherPushEl) {
+                otherPushEl.textContent = otherName + ": " + (otherStatus.pushups_done ? "erledigt ✔" : "offen");
+            }
+            if (otherSquatEl) {
+                otherSquatEl.textContent = otherName + ": " + (otherStatus.squats_done ? "erledigt ✔" : "offen");
+            }
+
             // Skip / Krank / Cant Buttons sperren je nach Regeln
             var btnSkip = document.getElementById('btn-skip');
             var btnInj = document.getElementById('btn-injured');
             var btnCant = document.getElementById('btn-cant');
 
-            // erwartet vom Backend:
-            // stateData.can_skip[role] = bool
-            // stateData.can_cant[role] = bool
             var canSkipAll = stateData.can_skip || {};
             var canCantAll = stateData.can_cant || {};
 
@@ -667,7 +702,6 @@
             btnSkip.disabled = !canSkip;
             btnCant.disabled = !canCant;
 
-            // bei bereits gesetztem skip/krank/cant: Buttons deaktivieren
             if (myStatus.skip) {
                 btnSkip.disabled = true;
             }
@@ -676,6 +710,14 @@
             }
             if (myStatus.cant) {
                 btnCant.disabled = true;
+            }
+
+            // Zusammenfassung: eigener Status + anderer
+            var statusSummary = document.getElementById('statusSummary');
+            if (statusSummary) {
+                var myHuman = buildHumanStatus(myStatus);
+                var otherHuman = buildHumanStatus(otherStatus);
+                statusSummary.textContent = "Du: " + myHuman + " • " + otherName + ": " + otherHuman;
             }
 
             // Cheater-Flag / Message
@@ -698,7 +740,6 @@
                     return;
                 }
                 stateData = data;
-                stateLoaded = true;
                 updateUI();
             });
         }
@@ -710,7 +751,6 @@
                     return;
                 }
                 phrasesData = data;
-                phrasesLoaded = true;
                 updatePhrase();
             });
         }
@@ -740,7 +780,7 @@
         }
 
         function askCantPassword(callback) {
-            var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr“ zu bestätigen:");
+            var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr!“ zu bestätigen:");
             if (pw === null) {
                 return; // abgebrochen
             }
