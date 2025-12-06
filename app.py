@@ -15,8 +15,8 @@ DEFAULT_FEMALE_NAME = os.getenv("WORKOUT_FEMALE_NAME", "Frau")
 EXERCISES = ["squats", "situps", "pushups"]  # "situps" wird in der UI als "Crunches" angezeigt
 
 SKIP_MIN_DAYS = 7          # Skip höchstens alle 7 Tage
-CANT_MIN_DAYS = 10         # "Ich kann nicht mehr" höchstens alle 10 Tage
-CANT_REDUCTION = 10        # Reps -10 bei "Ich kann nicht mehr"
+CANT_MIN_DAYS = 10         # "Ich kann nicht mehr!" höchstens alle 10 Tage
+CANT_REDUCTION = 10        # Reps -10 bei "Ich kann nicht mehr!"
 START_REPS = 15            # Startwiederholungen
 CANT_PASSWORD = os.getenv("WORKOUT_CANT_PASSWORD", "reset")
 
@@ -96,7 +96,6 @@ def load_state():
 
     # Backwards-Kompatibilität: fehlende Felder ergänzen
     if "start_date" not in state:
-        # Versuche das Startdatum aus vorhandener day-Nummer zu rekonstruieren
         try:
             d = int(state.get("day", 1))
         except (TypeError, ValueError):
@@ -275,11 +274,22 @@ def _build_can_flags(state):
     return can_skip, can_cant
 
 
-def _build_phrase_category(state) -> str:
-    """Bestimmt die Kategorie für den Tages-Spruch."""
+def _build_phrase_category(state, role_view: str) -> str:
+    """
+    Gibt eine Kategorie zurück, die direkt einem JSON-File im static/phrases/ Ordner entspricht.
+    Kategorien:
+      - none_done
+      - one_done_male / one_done_female
+      - all_done
+      - skip_male / skip_female
+      - cant_male / cant_female
+      - injured_male / injured_female
+      - cheater_male / cheater_female
+    """
     day = state["day"]
+    active_internal = ROLE_TO_INTERNAL.get(role_view, "male")
+    other_internal = "female" if active_internal == "male" else "male"
 
-    # Flags pro Person
     flags = {}
     for internal in ["male", "female"]:
         flags[internal] = {
@@ -290,23 +300,41 @@ def _build_phrase_category(state) -> str:
             "done_all": all(state["done"][internal].get(ex, False) for ex in EXERCISES),
         }
 
-    # Priorität: Cheater > Injured > Cant > Skip > Done-Status
-    if any(flags[p]["cheater"] for p in flags):
-        return "cheater"
-    if any(flags[p]["injured"] for p in flags):
-        return "injured"
-    if any(flags[p]["cant"] for p in flags):
-        return "cant"
-    if any(flags[p]["skip"] for p in flags):
-        return "skip"
+    def _suffix(internal_role: str) -> str:
+        return "male" if internal_role == "male" else "female"
 
-    # beide fertig?
-    done_male = flags["male"]["done_all"]
-    done_female = flags["female"]["done_all"]
-    if done_male and done_female:
+    # Priorität: Cheater > Injured > Cant > Skip > Done-Status
+    if flags[active_internal]["cheater"]:
+        return f"cheater_{_suffix(active_internal)}"
+    if flags[other_internal]["cheater"]:
+        return f"cheater_{_suffix(other_internal)}"
+
+    if flags[active_internal]["injured"]:
+        return f"injured_{_suffix(active_internal)}"
+    if flags[other_internal]["injured"]:
+        return f"injured_{_suffix(other_internal)}"
+
+    if flags[active_internal]["cant"]:
+        return f"cant_{_suffix(active_internal)}"
+    if flags[other_internal]["cant"]:
+        return f"cant_{_suffix(other_internal)}"
+
+    if flags[active_internal]["skip"]:
+        return f"skip_{_suffix(active_internal)}"
+    if flags[other_internal]["skip"]:
+        return f"skip_{_suffix(other_internal)}"
+
+    # Done-Status
+    active_done = flags[active_internal]["done_all"]
+    other_done = flags[other_internal]["done_all"]
+
+    if active_done and other_done:
         return "all_done"
-    if done_male or done_female:
-        return "one_done"
+    if active_done and not other_done:
+        return f"one_done_{_suffix(active_internal)}"
+    if other_done and not active_done:
+        return f"one_done_{_suffix(other_internal)}"
+
     return "none_done"
 
 
@@ -323,14 +351,13 @@ def _build_client_state(state, role_view: str, message: str | None = None):
             sd = datetime.strptime(start_iso, "%Y-%m-%d").date()
             start_display = format_date_swiss_long(sd)
     except Exception:
-        # notfalls bleibt das ISO-Format
         start_display = start_iso
 
     totals = _build_totals(state)
     reps_today = _build_reps_today(state)
     status = _build_status(state)
     can_skip, can_cant = _build_can_flags(state)
-    phrase_category = _build_phrase_category(state)
+    phrase_category = _build_phrase_category(state, role_view)
 
     # Cheater-Flag nur für die aktive Rolle
     internal = ROLE_TO_INTERNAL.get(role_view, "male")
@@ -339,10 +366,10 @@ def _build_client_state(state, role_view: str, message: str | None = None):
 
     response = {
         "weekday": weekday,
-        "date": date_str,  # bleibt kurz: 06.12.2025
+        "date": date_str,
         "day": int(state.get("day", 1)),
         "start_date": start_iso,
-        "start_date_display": start_display,  # z.B. 12. Dezember 2025
+        "start_date_display": start_display,
         "totals": totals,
         "reps_today": reps_today,
         "status": status,
@@ -366,7 +393,6 @@ def _apply_exercise(state, internal_person: str, internal_exercise: str):
     if internal_person not in ["male", "female"]:
         raise ValueError("Ungültige Person")
 
-    # idempotent: wenn schon erledigt, nichts tun
     if state["done"][internal_person].get(internal_exercise):
         return state, False
 
@@ -381,7 +407,6 @@ def _apply_skip(state, internal_person: str):
     skip_days = state["skip"].get(internal_person, [])
     last_skip_day = max(skip_days) if skip_days else None
 
-    # zu früh -> Cheater
     if last_skip_day is not None and (day - last_skip_day) < SKIP_MIN_DAYS:
         cheater_days = state["cheater"].setdefault(internal_person, [])
         if day not in cheater_days:
@@ -412,7 +437,6 @@ def _apply_cant(state, internal_person: str, password: str):
     cant_days = state["cant"].get(internal_person, [])
     last_cant_day = max(cant_days) if cant_days else None
 
-    # zu früh -> Cheater
     if last_cant_day is not None and (day - last_cant_day) < CANT_MIN_DAYS:
         cheater_days = state["cheater"].setdefault(internal_person, [])
         if day not in cheater_days:
@@ -423,7 +447,6 @@ def _apply_cant(state, internal_person: str, password: str):
         cant_days.append(day)
         state["cant"][internal_person] = cant_days
 
-    # Reps reduzieren
     for ex in EXERCISES:
         current_reps = state["reps"][internal_person].get(ex, START_REPS)
         new_reps = max(1, current_reps - CANT_REDUCTION)
@@ -505,7 +528,6 @@ def api_action():
             password = data.get("password", "")
             state, status = _apply_cant(state, internal_person, password)
             if status == "wrong_password":
-                # State wurde nicht verändert – alten State erneut laden
                 state = load_state()
                 resp = _build_client_state(
                     state,
@@ -522,7 +544,6 @@ def api_action():
             return jsonify({"error": "Ungültige Aktion"}), 400
 
     finally:
-        # State speichern (solange keine harte Validierungs-Exception)
         save_state(state)
 
     resp = _build_client_state(state, role_view, message)
@@ -531,12 +552,8 @@ def api_action():
 
 @app.route("/api/nextday", methods=["POST"])
 def api_nextday():
-    """Wechsel zum nächsten Tag – wird aktuell im Frontend nicht verwendet,
-    bleibt aber für Admin-/Debug-Zwecke verfügbar.
-    """
     state = load_state()
 
-    # Prüfen, ob beide Personen den Tag abgeschlossen haben
     for internal in ["male", "female"]:
         if not is_day_closed_for_person(state, internal):
             return (
@@ -544,17 +561,14 @@ def api_nextday():
                 400,
             )
 
-    # Nächster Tag
     state["day"] += 1
 
-    # Done zurücksetzen und Reps erhöhen
     for internal in ["male", "female"]:
         for ex in EXERCISES:
             state["done"][internal][ex] = False
-            state["reps"][internal][ex] += 1  # tägliche Steigerung
+            state["reps"][internal][ex] += 1
 
     save_state(state)
-    # response aus Sicht "mann"
     resp = _build_client_state(state, "mann", "Neuer Tag gestartet.")
     return jsonify(resp)
 
