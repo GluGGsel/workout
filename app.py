@@ -38,10 +38,30 @@ EXTERNAL_TO_INTERNAL_EXERCISE = {
 }
 INTERNAL_TO_EXTERNAL_EXERCISE = {v: k for k, v in EXTERNAL_TO_INTERNAL_EXERCISE.items()}
 
+MONTH_NAMES_DE = [
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
+]
+
 
 def _today() -> date:
     """Aktuelles Datum (ohne Uhrzeit) als date-Objekt."""
     return date.today()
+
+
+def format_date_swiss_long(d: date) -> str:
+    """z.B. 12. Dezember 2025"""
+    return f"{d.day}. {MONTH_NAMES_DE[d.month - 1]} {d.year}"
 
 
 def load_state():
@@ -295,6 +315,17 @@ def _build_client_state(state, role_view: str, message: str | None = None):
     current_date, weekday = calculate_current_date(state)
     date_str = current_date.strftime("%d.%m.%Y")
 
+    # Startdatum für Anzeige im Schweizer Format
+    start_iso = state.get("start_date")
+    start_display = start_iso
+    try:
+        if start_iso:
+            sd = datetime.strptime(start_iso, "%Y-%m-%d").date()
+            start_display = format_date_swiss_long(sd)
+    except Exception:
+        # notfalls bleibt das ISO-Format
+        start_display = start_iso
+
     totals = _build_totals(state)
     reps_today = _build_reps_today(state)
     status = _build_status(state)
@@ -308,9 +339,10 @@ def _build_client_state(state, role_view: str, message: str | None = None):
 
     response = {
         "weekday": weekday,
-        "date": date_str,
+        "date": date_str,  # bleibt kurz: 06.12.2025
         "day": int(state.get("day", 1)),
-        "start_date": state.get("start_date"),
+        "start_date": start_iso,
+        "start_date_display": start_display,  # z.B. 12. Dezember 2025
         "totals": totals,
         "reps_today": reps_today,
         "status": status,
@@ -475,10 +507,14 @@ def api_action():
             if status == "wrong_password":
                 # State wurde nicht verändert – alten State erneut laden
                 state = load_state()
-                resp = _build_client_state(state, role_view, "Falsches Passwort für „Ich kann nicht mehr“.")
+                resp = _build_client_state(
+                    state,
+                    role_view,
+                    "Falsches Passwort für „Ich kann nicht mehr!“."
+                )
                 return jsonify(resp), 403
             elif status == "cheater_cant":
-                message = "„Ich kann nicht mehr“ zu früh – Cheater erkannt."
+                message = "„Ich kann nicht mehr!“ zu früh – Cheater erkannt."
             else:
                 message = "Reps reduziert. Heute war's hart genug."
 
@@ -486,7 +522,7 @@ def api_action():
             return jsonify({"error": "Ungültige Aktion"}), 400
 
     finally:
-        # State nur speichern, wenn keine harte Validierungs-Exception
+        # State speichern (solange keine harte Validierungs-Exception)
         save_state(state)
 
     resp = _build_client_state(state, role_view, message)
