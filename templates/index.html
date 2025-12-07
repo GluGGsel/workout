@@ -108,16 +108,37 @@
         .totals-item {
             font-size: 0.85rem;
             color: #d1d5db;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(55, 65, 81, 0.7);
         }
 
-        .totals-label {
-            color: #9ca3af;
-            font-size: 0.78rem;
+        .totals-title {
+            font-size: 0.9rem;
+            font-weight: 700;
+            margin-bottom: 4px;
         }
 
-        .totals-value {
-            font-weight: 600;
+        .totals-line {
+            font-size: 0.85rem;
             margin-top: 2px;
+        }
+
+        .male-totals {
+            border-left: 3px solid #60a5fa;
+        }
+
+        .male-totals .totals-title {
+            color: #60a5fa;
+        }
+
+        .female-totals {
+            border-left: 3px solid #f9a8d4;
+        }
+
+        .female-totals .totals-title {
+            color: #f9a8d4;
         }
 
         .exercises {
@@ -348,21 +369,33 @@
             </div>
         </div>
         <div class="totals-grid">
-            <div class="totals-item">
-                <div class="totals-label">Reps {{ male_name }} (Crunches / Pushups / Squats)</div>
-                <div class="totals-value" id="totalsMaleReps">– / – / –</div>
+            <!-- Reps Mann -->
+            <div class="totals-item male-totals">
+                <div class="totals-title"><strong>Total {{ male_name }}</strong></div>
+                <div class="totals-line">Crunches: <span id="totalsMaleCrunches">–</span></div>
+                <div class="totals-line">Squats: <span id="totalsMaleSquats">–</span></div>
+                <div class="totals-line">Pushups: <span id="totalsMalePushups">–</span></div>
             </div>
-            <div class="totals-item">
-                <div class="totals-label">Reps {{ female_name }} (Crunches / Pushups / Squats)</div>
-                <div class="totals-value" id="totalsFemaleReps">– / – / –</div>
+            <!-- Reps Frau -->
+            <div class="totals-item female-totals">
+                <div class="totals-title"><strong>Total {{ female_name }}</strong></div>
+                <div class="totals-line">Crunches: <span id="totalsFemaleCrunches">–</span></div>
+                <div class="totals-line">Squats: <span id="totalsFemaleSquats">–</span></div>
+                <div class="totals-line">Pushups: <span id="totalsFemalePushups">–</span></div>
             </div>
-            <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ male_name }} (Skip / „Ich kann nicht mehr!“ / krank)</div>
-                <div class="totals-value" id="totalsMaleSpecial">– / – / –</div>
+            <!-- Spezialtage Mann -->
+            <div class="totals-item male-totals">
+                <div class="totals-title"><strong>Spezialtage {{ male_name }}</strong></div>
+                <div class="totals-line">Skip: <span id="totalsMaleSkip">–</span></div>
+                <div class="totals-line">krank/verletzt: <span id="totalsMaleInjured">–</span></div>
+                <div class="totals-line">Ich kann nicht mehr!: <span id="totalsMaleCant">–</span></div>
             </div>
-            <div class="totals-item">
-                <div class="totals-label">Spezialtage {{ female_name }} (Skip / „Ich kann nicht mehr!“ / krank)</div>
-                <div class="totals-value" id="totalsFemaleSpecial">– / – / –</div>
+            <!-- Spezialtage Frau -->
+            <div class="totals-item female-totals">
+                <div class="totals-title"><strong>Spezialtage {{ female_name }}</strong></div>
+                <div class="totals-line">Skip: <span id="totalsFemaleSkip">–</span></div>
+                <div class="totals-line">krank/verletzt: <span id="totalsFemaleInjured">–</span></div>
+                <div class="totals-line">Ich kann nicht mehr!: <span id="totalsFemaleCant">–</span></div>
             </div>
         </div>
     </section>
@@ -644,17 +677,23 @@
             var tM = totals.mann || {};
             var tF = totals.frau || {};
 
-            var maleRepsText = (tM.crunches || 0) + " / " + (tM.pushups || 0) + " / " + (tM.squats || 0);
-            var femaleRepsText = (tF.crunches || 0) + " / " + (tF.pushups || 0) + " / " + (tF.squats || 0);
+            // Neue Totals-Darstellung: je Zeile Crunches / Squats / Pushups
+            document.getElementById('totalsMaleCrunches').textContent = tM.crunches || 0;
+            document.getElementById('totalsMaleSquats').textContent = tM.squats || 0;
+            document.getElementById('totalsMalePushups').textContent = tM.pushups || 0;
 
-            document.getElementById('totalsMaleReps').textContent = maleRepsText;
-            document.getElementById('totalsFemaleReps').textContent = femaleRepsText;
+            document.getElementById('totalsFemaleCrunches').textContent = tF.crunches || 0;
+            document.getElementById('totalsFemaleSquats').textContent = tF.squats || 0;
+            document.getElementById('totalsFemalePushups').textContent = tF.pushups || 0;
 
-            var maleSpecial = (tM.skip_days || 0) + " / " + (tM.cant_days || 0) + " / " + (tM.injured_days || 0);
-            var femaleSpecial = (tF.skip_days || 0) + " / " + (tF.cant_days || 0) + " / " + (tF.injured_days || 0);
+            // Spezialtage: Skip / Ich kann nicht mehr! / krank
+            document.getElementById('totalsMaleSkip').textContent = tM.skip_days || 0;
+            document.getElementById('totalsMaleCant').textContent = tM.cant_days || 0;
+            document.getElementById('totalsMaleInjured').textContent = tM.injured_days || 0;
 
-            document.getElementById('totalsMaleSpecial').textContent = maleSpecial;
-            document.getElementById('totalsFemaleSpecial').textContent = femaleSpecial;
+            document.getElementById('totalsFemaleSkip').textContent = tF.skip_days || 0;
+            document.getElementById('totalsFemaleCant').textContent = tF.cant_days || 0;
+            document.getElementById('totalsFemaleInjured').textContent = tF.injured_days || 0;
 
             var repsToday = stateData.reps_today || {};
             var myReps = repsToday[role] || {};
@@ -694,14 +733,15 @@
             var otherPushEl = document.getElementById('other-pushups-status');
             var otherSquatEl = document.getElementById('other-squats-status');
 
+            // Statt "Frau: offen" → "Name (❌)" / "Name (✅)"
             if (otherCrunchEl) {
-                otherCrunchEl.textContent = otherName + ": " + (otherStatus.crunches_done ? "erledigt ✔" : "offen");
+                otherCrunchEl.textContent = otherName + (otherStatus.crunches_done ? " (✅)" : " (❌)");
             }
             if (otherPushEl) {
-                otherPushEl.textContent = otherName + ": " + (otherStatus.pushups_done ? "erledigt ✔" : "offen");
+                otherPushEl.textContent = otherName + (otherStatus.pushups_done ? " (✅)" : " (❌)");
             }
             if (otherSquatEl) {
-                otherSquatEl.textContent = otherName + ": " + (otherStatus.squats_done ? "erledigt ✔" : "offen");
+                otherSquatEl.textContent = otherName + (otherStatus.squats_done ? " (✅)" : " (❌)");
             }
 
             var btnSkip = document.getElementById('btn-skip');
