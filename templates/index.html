@@ -98,11 +98,18 @@
             color: #9ca3af;
         }
 
+        /* Totals-Grid: Mobile 1 Spalte, ab 640px 2 Spalten (oben Total, unten Spezialtage) */
         .totals-grid {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: 1fr;  /* Mobile: alles untereinander */
             gap: 8px;
             margin-top: 6px;
+        }
+
+        @media (min-width: 640px) {
+            .totals-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));  /* 2 Spalten: 1. Reihe Total, 2. Reihe Spezialtage */
+            }
         }
 
         .totals-item {
@@ -677,7 +684,6 @@
             var tM = totals.mann || {};
             var tF = totals.frau || {};
 
-            // Neue Totals-Darstellung: je Zeile Crunches / Squats / Pushups
             document.getElementById('totalsMaleCrunches').textContent = tM.crunches || 0;
             document.getElementById('totalsMaleSquats').textContent = tM.squats || 0;
             document.getElementById('totalsMalePushups').textContent = tM.pushups || 0;
@@ -686,7 +692,6 @@
             document.getElementById('totalsFemaleSquats').textContent = tF.squats || 0;
             document.getElementById('totalsFemalePushups').textContent = tF.pushups || 0;
 
-            // Spezialtage: Skip / Ich kann nicht mehr! / krank
             document.getElementById('totalsMaleSkip').textContent = tM.skip_days || 0;
             document.getElementById('totalsMaleCant').textContent = tM.cant_days || 0;
             document.getElementById('totalsMaleInjured').textContent = tM.injured_days || 0;
@@ -733,7 +738,6 @@
             var otherPushEl = document.getElementById('other-pushups-status');
             var otherSquatEl = document.getElementById('other-squats-status');
 
-            // Statt "Frau: offen" → "Name (❌)" / "Name (✅)"
             if (otherCrunchEl) {
                 otherCrunchEl.textContent = otherName + (otherStatus.crunches_done ? " (✅)" : " (❌)");
             }
