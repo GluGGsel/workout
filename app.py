@@ -393,12 +393,37 @@ def _apply_exercise(state, internal_person: str, internal_exercise: str):
     if internal_person not in ["male", "female"]:
         raise ValueError("Ungültige Person")
 
+    # Wenn schon erledigt, nichts tun
     if state["done"][internal_person].get(internal_exercise):
         return state, False
 
     state["done"][internal_person][internal_exercise] = True
     reps_today = state["reps"][internal_person][internal_exercise]
     state["overall"][internal_person][internal_exercise] += reps_today
+    return state, True
+
+
+def _apply_exercise_undo(state, internal_person: str, internal_exercise: str):
+    """
+    Macht eine erledigte Übung wieder rückgängig:
+    - done-Flag zurück auf False
+    - overall-Reps um die Tages-Reps reduzieren (aber nicht unter 0)
+    """
+    if internal_exercise not in EXERCISES:
+        raise ValueError("Ungültige Übung")
+
+    if internal_person not in ["male", "female"]:
+        raise ValueError("Ungültige Person")
+
+    # Wenn sie gar nicht erledigt war, gibt es nichts zu tun
+    if not state["done"][internal_person].get(internal_exercise):
+        return state, False
+
+    state["done"][internal_person][internal_exercise] = False
+    reps_today = state["reps"][internal_person][internal_exercise]
+    current_overall = state["overall"][internal_person].get(internal_exercise, 0)
+    new_overall = max(0, current_overall - reps_today)
+    state["overall"][internal_person][internal_exercise] = new_overall
     return state, True
 
 
@@ -513,6 +538,17 @@ def api_action():
             else:
                 message = f"{exercise_external.capitalize()} war bereits erledigt."
 
+        elif action == "exercise_undo":
+            exercise_external = data.get("exercise")
+            if exercise_external not in EXTERNAL_TO_INTERNAL_EXERCISE:
+                return jsonify({"error": "Ungültige Übung"}), 400
+            internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
+            state, changed = _apply_exercise_undo(state, internal_person, internal_ex)
+            if changed:
+                message = f"{exercise_external.capitalize()} wieder abgewählt."
+            else:
+                message = f"{exercise_external.capitalize()} war nicht als erledigt markiert."
+
         elif action == "skip":
             state, status = _apply_skip(state, internal_person)
             if status == "cheater_skip":
@@ -528,6 +564,7 @@ def api_action():
             password = data.get("password", "")
             state, status = _apply_cant(state, internal_person, password)
             if status == "wrong_password":
+                # State zurückrollen, falls wir vorher schon etwas verändert hätten
                 state = load_state()
                 resp = _build_client_state(
                     state,
