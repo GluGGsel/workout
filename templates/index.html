@@ -585,20 +585,34 @@
         }
 
         function loadPhraseCategory(category, cb) {
-            if (phrasesCache.hasOwnProperty(category)) {
-                cb(null, phrasesCache[category]);
-                return;
-            }
-            var url = '/static/phrases/' + encodeURIComponent(category) + '.json';
-            xhrGet(url, function (err, data) {
-                if (err) {
-                    cb(err);
-                    return;
-                }
-                phrasesCache[category] = data;
-                cb(null, data);
-            });
+    // Wenn im JS-Cache vorhanden → direkt zurückgeben
+    if (phrasesCache.hasOwnProperty(category)) {
+        cb(null, phrasesCache[category]);
+        return;
+    }
+
+    // Cache-Buster an die URL hängen, damit Browser und Proxy NICHT cachen
+    var url =
+        '/static/phrases/' +
+        encodeURIComponent(category) +
+        '.json?v=' + Date.now();   // << wichtig!
+
+    xhrGet(url, function (err, data) {
+        var labelEl = document.getElementById('phraseCategoryBadge');
+        var textEl = document.getElementById('phraseText');
+
+        if (err) {
+            textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
+            cb(err);
+            return;
         }
+
+        // Array im lokalen Cache speichern
+        phrasesCache[category] = data;
+
+        cb(null, data);
+    });
+}
 
         function updatePhrase() {
             if (!stateData || !stateData.phrase_category) {
