@@ -445,6 +445,17 @@ def _apply_skip(state, internal_person: str):
     return state, "ok"
 
 
+def _apply_skip_undo(state, internal_person: str):
+    """Entfernt den Skip-Status für den aktuellen Tag."""
+    day = state["day"]
+    skip_days = state["skip"].get(internal_person, [])
+    if day in skip_days:
+        skip_days = [d for d in skip_days if d != day]
+        state["skip"][internal_person] = skip_days
+        return state, "ok"
+    return state, "noop"
+
+
 def _apply_injured(state, internal_person: str):
     day = state["day"]
     injured_days = state["injured"].get(internal_person, [])
@@ -452,6 +463,17 @@ def _apply_injured(state, internal_person: str):
         injured_days.append(day)
         state["injured"][internal_person] = injured_days
     return state, "ok"
+
+
+def _apply_injured_undo(state, internal_person: str):
+    """Entfernt den krank/verletzt-Status für den aktuellen Tag."""
+    day = state["day"]
+    injured_days = state["injured"].get(internal_person, [])
+    if day in injured_days:
+        injured_days = [d for d in injured_days if d != day]
+        state["injured"][internal_person] = injured_days
+        return state, "ok"
+    return state, "noop"
 
 
 def _apply_cant(state, internal_person: str, password: str):
@@ -476,6 +498,26 @@ def _apply_cant(state, internal_person: str, password: str):
         current_reps = state["reps"][internal_person].get(ex, START_REPS)
         new_reps = max(1, current_reps - CANT_REDUCTION)
         state["reps"][internal_person][ex] = new_reps
+
+    return state, "ok"
+
+
+def _apply_cant_undo(state, internal_person: str):
+    """
+    Entfernt den „Ich kann nicht mehr!“-Status für den aktuellen Tag
+    und setzt die Reps um CANT_REDUCTION wieder her.
+    """
+    day = state["day"]
+    cant_days = state["cant"].get(internal_person, [])
+    if day not in cant_days:
+        return state, "noop"
+
+    cant_days = [d for d in cant_days if d != day]
+    state["cant"][internal_person] = cant_days
+
+    for ex in EXERCISES:
+        current_reps = state["reps"][internal_person].get(ex, START_REPS)
+        state["reps"][internal_person][ex] = current_reps + CANT_REDUCTION
 
     return state, "ok"
 
@@ -556,9 +598,23 @@ def api_action():
             else:
                 message = "Skip-Tag gesetzt. Heute offiziell faul."
 
+        elif action == "skip_undo":
+            state, status = _apply_skip_undo(state, internal_person)
+            if status == "ok":
+                message = "Skip-Tag zurückgenommen."
+            else:
+                message = "Für heute war kein Skip gesetzt."
+
         elif action == "injured":
             state, _ = _apply_injured(state, internal_person)
             message = "Tag als krank/verletzt markiert."
+
+        elif action == "injured_undo":
+            state, status = _apply_injured_undo(state, internal_person)
+            if status == "ok":
+                message = "krank/verletzt-Status zurückgenommen."
+            else:
+                message = "Für heute war kein krank/verletzt-Status gesetzt."
 
         elif action == "cant":
             password = data.get("password", "")
@@ -576,6 +632,13 @@ def api_action():
                 message = "„Ich kann nicht mehr!“ zu früh – Cheater erkannt."
             else:
                 message = "Reps reduziert. Heute war's hart genug."
+
+        elif action == "cant_undo":
+            state, status = _apply_cant_undo(state, internal_person)
+            if status == "ok":
+                message = "„Ich kann nicht mehr!“-Status zurückgenommen."
+            else:
+                message = "Für heute war kein „Ich kann nicht mehr!“-Status gesetzt."
 
         else:
             return jsonify({"error": "Ungültige Aktion"}), 400
