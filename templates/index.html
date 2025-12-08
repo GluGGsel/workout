@@ -234,6 +234,7 @@
             border: none;
             cursor: pointer;
             white-space: nowrap;
+            transition: filter 0.12s ease, box-shadow 0.12s ease;
         }
 
         .status-btn.skip {
@@ -258,6 +259,12 @@
 
         .status-btn span.icon {
             font-size: 1.1rem;
+        }
+
+        /* aktive Status-Buttons etwas hervorheben */
+        .status-btn.active {
+            filter: brightness(1.25);
+            box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.35);
         }
 
         .status-summary {
@@ -757,17 +764,18 @@
             var canSkip = typeof canSkipAll[role] === 'boolean' ? canSkipAll[role] : true;
             var canCant = typeof canCantAll[role] === 'boolean' ? canCantAll[role] : true;
 
-            btnSkip.disabled = !canSkip;
-            btnCant.disabled = !canCant;
-
-            if (myStatus.skip) {
-                btnSkip.disabled = true;
+            // Buttons nur sperren, wenn Aktion NICHT gesetzt und auch laut Regeln nicht erlaubt
+            if (btnSkip) {
+                btnSkip.disabled = !canSkip && !myStatus.skip;
+                btnSkip.classList.toggle('active', !!myStatus.skip);
             }
-            if (myStatus.injured) {
-                btnInj.disabled = true;
+            if (btnCant) {
+                btnCant.disabled = !canCant && !myStatus.cant;
+                btnCant.classList.toggle('active', !!myStatus.cant);
             }
-            if (myStatus.cant) {
-                btnCant.disabled = true;
+            if (btnInj) {
+                btnInj.disabled = false; // immer klickbar für Toggle
+                btnInj.classList.toggle('active', !!myStatus.injured);
             }
 
             var statusSummary = document.getElementById('statusSummary');
@@ -822,7 +830,7 @@
             });
         }
 
-        // 🔁 NEU: eigenen Status für Toggle lesen
+        // eigener Status für Toggles
         function getMyStatus() {
             if (!stateData || !stateData.status) return {};
             return stateData.status[role] || {};
@@ -844,7 +852,7 @@
             var btnInj = document.getElementById('btn-injured');
             var btnCant = document.getElementById('btn-cant');
 
-            // Toggle-Logik für die drei Übungen
+            // Übungen: Toggle erledigt / unerledigt
             if (btnCrunch) {
                 btnCrunch.onclick = function () {
                     var myStatus = getMyStatus();
@@ -870,21 +878,40 @@
                 };
             }
 
+            // Skip: Toggle
             if (btnSkip) {
                 btnSkip.onclick = function () {
-                    sendAction('skip', {});
+                    var myStatus = getMyStatus();
+                    var isSkip = !!myStatus.skip;
+                    var actionType = isSkip ? 'skip_undo' : 'skip';
+                    sendAction(actionType, {});
                 };
             }
+
+            // krank/verletzt: Toggle
             if (btnInj) {
                 btnInj.onclick = function () {
-                    sendAction('injured', {});
+                    var myStatus = getMyStatus();
+                    var isInjured = !!myStatus.injured;
+                    var actionType = isInjured ? 'injured_undo' : 'injured';
+                    sendAction(actionType, {});
                 };
             }
+
+            // Ich kann nicht mehr!: Toggle (Passwort nur beim Setzen)
             if (btnCant) {
                 btnCant.onclick = function () {
-                    askCantPassword(function (pw) {
-                        sendAction('cant', { password: pw });
-                    });
+                    var myStatus = getMyStatus();
+                    var isCant = !!myStatus.cant;
+
+                    if (isCant) {
+                        // zurücknehmen ohne Passwort
+                        sendAction('cant_undo', {});
+                    } else {
+                        askCantPassword(function (pw) {
+                            sendAction('cant', { password: pw });
+                        });
+                    }
                 };
             }
         }
