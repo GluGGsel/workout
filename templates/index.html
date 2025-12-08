@@ -491,6 +491,20 @@
         </div>
     </section>
 
+    <!-- Nächster Tag -->
+    <section class="card">
+        <div class="card-header">
+            <div class="card-title">Tag abschließen</div>
+        </div>
+        <button class="status-btn cant" id="btn-nextday" type="button">
+            <span class="icon">⏭</span>
+            <span>Nächster Tag</span>
+        </button>
+        <div class="status-summary small">
+            Nur klicken, wenn ihr beide für heute durch seid.
+        </div>
+    </section>
+
 </div>
 
 <script>
@@ -584,35 +598,30 @@
             return cat || 'Unbekannt';
         }
 
+        // mit Cache-Buster, damit geänderte JSONs sofort greifen
         function loadPhraseCategory(category, cb) {
-    // Wenn im JS-Cache vorhanden → direkt zurückgeben
-    if (phrasesCache.hasOwnProperty(category)) {
-        cb(null, phrasesCache[category]);
-        return;
-    }
+            if (phrasesCache.hasOwnProperty(category)) {
+                cb(null, phrasesCache[category]);
+                return;
+            }
+            var url =
+                '/static/phrases/' +
+                encodeURIComponent(category) +
+                '.json?v=' + Date.now();
 
-    // Cache-Buster an die URL hängen, damit Browser und Proxy NICHT cachen
-    var url =
-        '/static/phrases/' +
-        encodeURIComponent(category) +
-        '.json?v=' + Date.now();   // << wichtig!
+            xhrGet(url, function (err, data) {
+                var textEl = document.getElementById('phraseText');
 
-    xhrGet(url, function (err, data) {
-        var labelEl = document.getElementById('phraseCategoryBadge');
-        var textEl = document.getElementById('phraseText');
+                if (err) {
+                    textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
+                    cb(err);
+                    return;
+                }
 
-        if (err) {
-            textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
-            cb(err);
-            return;
+                phrasesCache[category] = data;
+                cb(null, data);
+            });
         }
-
-        // Array im lokalen Cache speichern
-        phrasesCache[category] = data;
-
-        cb(null, data);
-    });
-}
 
         function updatePhrase() {
             if (!stateData || !stateData.phrase_category) {
@@ -634,7 +643,7 @@
                 }
 
                 if (err) {
-                    textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
+                    // Fehlertext wurde bereits in loadPhraseCategory gesetzt
                     return;
                 }
 
@@ -778,7 +787,7 @@
             var canSkip = typeof canSkipAll[role] === 'boolean' ? canSkipAll[role] : true;
             var canCant = typeof canCantAll[role] === 'boolean' ? canCantAll[role] : true;
 
-            // Buttons nur sperren, wenn Aktion NICHT gesetzt und auch laut Regeln nicht erlaubt
+            // Buttons nur sperren, wenn Aktion NICHT gesetzt und laut Regeln nicht erlaubt
             if (btnSkip) {
                 btnSkip.disabled = !canSkip && !myStatus.skip;
                 btnSkip.classList.toggle('active', !!myStatus.skip);
@@ -788,7 +797,7 @@
                 btnCant.classList.toggle('active', !!myStatus.cant);
             }
             if (btnInj) {
-                btnInj.disabled = false; // immer klickbar für Toggle
+                btnInj.disabled = false;
                 btnInj.classList.toggle('active', !!myStatus.injured);
             }
 
@@ -844,7 +853,6 @@
             });
         }
 
-        // eigener Status für Toggles
         function getMyStatus() {
             if (!stateData || !stateData.status) return {};
             return stateData.status[role] || {};
@@ -865,6 +873,7 @@
             var btnSkip = document.getElementById('btn-skip');
             var btnInj = document.getElementById('btn-injured');
             var btnCant = document.getElementById('btn-cant');
+            var btnNext = document.getElementById('btn-nextday');
 
             // Übungen: Toggle erledigt / unerledigt
             if (btnCrunch) {
@@ -919,13 +928,30 @@
                     var isCant = !!myStatus.cant;
 
                     if (isCant) {
-                        // zurücknehmen ohne Passwort
                         sendAction('cant_undo', {});
                     } else {
                         askCantPassword(function (pw) {
                             sendAction('cant', { password: pw });
                         });
                     }
+                };
+            }
+
+            // Nächster Tag
+            if (btnNext) {
+                btnNext.onclick = function () {
+                    if (!window.confirm("Sicher? Nächster Tag kann nicht rückgängig gemacht werden.")) {
+                        return;
+                    }
+                    xhrPost('/api/nextday', {}, function (err, data) {
+                        if (err) {
+                            showMessage("Konnte nächsten Tag nicht starten: " + err.message, "error");
+                            return;
+                        }
+                        stateData = data;
+                        updateUI();
+                        showMessage("Neuer Tag gestartet.", "success");
+                    });
                 };
             }
         }
