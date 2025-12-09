@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "=== Workout-App Installation startet ==="
+echo "=== workout-Counter Installation startet ==="
 
 # 1) Pakete installieren
 echo "[1/6] Installiere Systempakete..."
@@ -14,12 +14,12 @@ id ubuntu 2>/dev/null || useradd -m -s /bin/bash ubuntu
 
 # 3) Projektverzeichnis vorbereiten
 echo "[3/6] Sync Projektdateien..."
-install -d -o ubuntu -g ubuntu /home/ubuntu/workout-app
-cp -r . /home/ubuntu/workout-app
+install -d -o ubuntu -g ubuntu /home/ubuntu/workout-counter
+cp -r . /home/ubuntu/workout-counter
 
 # 4) Python venv + Dependencies
 echo "[4/6] Erstelle virtuelle Umgebung..."
-cd /home/ubuntu/workout-app
+cd /home/ubuntu/workout-counter
 sudo -u ubuntu python3 -m venv venv
 sudo -u ubuntu bash -lc 'venv/bin/pip install --upgrade pip'
 sudo -u ubuntu bash -lc 'venv/bin/pip install flask gunicorn'
