@@ -5,7 +5,13 @@ After=network.target
 [Service]
 User=ubuntu
 WorkingDirectory=/home/ubuntu/workout-app
-ExecStart=/home/ubuntu/workout-app/venv/bin/gunicorn -b 0.0.0.0:8000 app:app
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/ubuntu/workout-app/venv/bin/gunicorn \
+    --workers 2 \
+    --reload \
+    --timeout 90 \
+    --bind 0.0.0.0:8000 \
+    app:app
 Restart=always
 
 [Install]
