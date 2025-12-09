@@ -11,8 +11,8 @@ app.jinja_env.auto_reload = True
 STATE_FILE = "state.json"
 
 # Namen können hier leicht mit Umgebungsvariablen angepasst werden
-DEFAULT_MALE_NAME = os.getenv("WORKOUT_MALE_NAME", "Mann")
-DEFAULT_FEMALE_NAME = os.getenv("WORKOUT_FEMALE_NAME", "Frau")
+DEFAULT_MALE_NAME = "Emmanuel"
+DEFAULT_FEMALE_NAME = "Joy"
 
 EXERCISES = ["squats", "situps", "pushups"]  # "situps" wird in der UI als "Crunches" angezeigt
 
