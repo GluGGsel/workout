@@ -5,6 +5,8 @@ from datetime import date, datetime, timedelta
 from flask import Flask, render_template, jsonify, request
 
 app = Flask(__name__)
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
 
 STATE_FILE = "state.json"
 
