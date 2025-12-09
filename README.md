@@ -56,10 +56,17 @@ Auf einem frischen Ubuntu 24.x oder LXC:
 ```bash
 sudo apt update
 sudo apt install -y git
+cd /home/ubuntu
 git clone https://github.com/GluGGsel/workout-counter.git
 cd workout-counter
 sudo chmod +x install.sh
 sudo ./install.sh
+```
+
+```
+cd /home/ubuntu/workout-counter
+git pull
+sudo ./install.sh 
 ```
 
 # WebUI aufrufen unter:
