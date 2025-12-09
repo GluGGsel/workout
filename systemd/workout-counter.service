@@ -7,12 +7,7 @@ User=ubuntu
 WorkingDirectory=/home/ubuntu/workout-counter
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONPATH=/home/ubuntu/workout-counter"
-ExecStart=/home/ubuntu/workout-counter/venv/bin/gunicorn \
-    --workers 2 \
-    --reload \
-    --timeout 90 \
-    --bind 0.0.0.0:8000 \
-    app:app
+ExecStart=/home/ubuntu/workout-counter/venv/bin/gunicorn --workers 2 --reload --timeout 90 --bind 0.0.0.0:8000 app:app
 Restart=always
 
 [Install]
