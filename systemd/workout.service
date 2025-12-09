@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 User=ubuntu
-WorkingDirectory=/home/ubuntu/workout-app
+WorkingDirectory=/home/ubuntu/workout-counter
 Environment="PYTHONUNBUFFERED=1"
 Environment="PYTHONPATH=/home/ubuntu/workout-app"
 ExecStart=/home/ubuntu/workout-app/venv/bin/gunicorn \
