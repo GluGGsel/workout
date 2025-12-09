@@ -6,6 +6,7 @@ After=network.target
 User=ubuntu
 WorkingDirectory=/home/ubuntu/workout-app
 Environment="PYTHONUNBUFFERED=1"
+Environment="PYTHONPATH=/home/ubuntu/workout-app"
 ExecStart=/home/ubuntu/workout-app/venv/bin/gunicorn \
     --workers 2 \
     --reload \
