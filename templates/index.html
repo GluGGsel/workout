@@ -353,6 +353,20 @@
             }
         }
     </style>
+<script>
+  // placeholder substitution for phrases coming from static JSON or API
+  window.__WC_NAMES__ = {
+    male: "{{ male_name }}",
+    female: "{{ female_name }}"
+  };
+  window.__wc_subst = function (txt) {
+    if (typeof txt !== "string") return txt;
+    return txt
+      .replaceAll("{male}", window.__WC_NAMES__.male)
+      .replaceAll("{female}", window.__WC_NAMES__.female);
+  };
+</script>
+
 </head>
 <body data-role="{{ role }}" data-male-name="{{ male_name }}" data-female-name="{{ female_name }}">
 <div class="app">
@@ -574,7 +588,7 @@
                 cls += 'message-info';
             }
             box.className = cls;
-            box.textContent = text;
+            box.textContent = __wc_subst(text);
             box.style.display = 'block';
         }
 
@@ -613,7 +627,7 @@
                 var textEl = document.getElementById('phraseText');
 
                 if (err) {
-                    textEl.textContent = "Fehler beim Laden der Sprüche: " + err.message;
+                    textEl.textContent = __wc_subst("Fehler beim Laden der Sprüche: " + err.message);
                     cb(err);
                     return;
                 }
@@ -635,7 +649,7 @@
                 var labelEl = document.getElementById('phraseCategoryBadge');
                 var textEl = document.getElementById('phraseText');
 
-                labelEl.textContent = getPhraseCategoryLabel(category);
+                labelEl.textContent = __wc_subst(getPhraseCategoryLabel(category));
                 if (category.indexOf('cheater_') === 0) {
                     labelEl.className = 'badge cheater-badge';
                 } else {
@@ -656,7 +670,7 @@
                 else if (category.indexOf('cheater_') === 0) { salt = 6; }
 
                 var phrase = pickDeterministic(phrasesArray, day, salt);
-                textEl.textContent = phrase || '…';
+                textEl.textContent = __wc_subst(phrase || '…');
             });
         }
 
@@ -683,13 +697,13 @@
                 return;
             }
 
-            document.getElementById('weekdayLabel').textContent = stateData.weekday || '–';
-            document.getElementById('dateLabel').textContent = stateData.date || '–';
-            document.getElementById('dayLabel').textContent = stateData.day || '–';
+            document.getElementById('weekdayLabel').textContent = __wc_subst(stateData.weekday || '–');
+            document.getElementById('dateLabel').textContent = __wc_subst(stateData.date || '–');
+            document.getElementById('dayLabel').textContent = __wc_subst(stateData.day || '–');
 
             var startDisplay = stateData.start_date_display || stateData.start_date || '–';
-            document.getElementById('startDateLabel').textContent = startDisplay;
-            document.getElementById('totalsStartLabel').textContent = startDisplay;
+            document.getElementById('startDateLabel').textContent = __wc_subst(startDisplay);
+            document.getElementById('totalsStartLabel').textContent = __wc_subst(startDisplay);
 
             var roleTitle = document.getElementById('roleTitle');
             var roleDesc = document.getElementById('roleDesc');
@@ -700,34 +714,34 @@
             var otherName = (role === 'mann') ? femaleName : maleName;
 
             if (role === 'mann') {
-                roleTitle.textContent = maleName + " – deine Seite";
-                roleDesc.textContent = "Nur du kannst hier abhaken.";
-                currentNameLabel.textContent = maleName;
+                roleTitle.textContent = __wc_subst(maleName + " – deine Seite");
+                roleDesc.textContent = __wc_subst("Nur du kannst hier abhaken.");
+                currentNameLabel.textContent = __wc_subst(maleName);
             } else {
-                roleTitle.textContent = femaleName + " – deine Seite";
-                roleDesc.textContent = "Nur du kannst hier abhaken.";
-                currentNameLabel.textContent = femaleName;
+                roleTitle.textContent = __wc_subst(femaleName + " – deine Seite");
+                roleDesc.textContent = __wc_subst("Nur du kannst hier abhaken.");
+                currentNameLabel.textContent = __wc_subst(femaleName);
             }
 
             var totals = stateData.totals || {};
             var tM = totals.mann || {};
             var tF = totals.frau || {};
 
-            document.getElementById('totalsMaleCrunches').textContent = tM.crunches || 0;
-            document.getElementById('totalsMaleSquats').textContent = tM.squats || 0;
-            document.getElementById('totalsMalePushups').textContent = tM.pushups || 0;
+            document.getElementById('totalsMaleCrunches').textContent = __wc_subst(tM.crunches || 0);
+            document.getElementById('totalsMaleSquats').textContent = __wc_subst(tM.squats || 0);
+            document.getElementById('totalsMalePushups').textContent = __wc_subst(tM.pushups || 0);
 
-            document.getElementById('totalsFemaleCrunches').textContent = tF.crunches || 0;
-            document.getElementById('totalsFemaleSquats').textContent = tF.squats || 0;
-            document.getElementById('totalsFemalePushups').textContent = tF.pushups || 0;
+            document.getElementById('totalsFemaleCrunches').textContent = __wc_subst(tF.crunches || 0);
+            document.getElementById('totalsFemaleSquats').textContent = __wc_subst(tF.squats || 0);
+            document.getElementById('totalsFemalePushups').textContent = __wc_subst(tF.pushups || 0);
 
-            document.getElementById('totalsMaleSkip').textContent = tM.skip_days || 0;
-            document.getElementById('totalsMaleCant').textContent = tM.cant_days || 0;
-            document.getElementById('totalsMaleInjured').textContent = tM.injured_days || 0;
+            document.getElementById('totalsMaleSkip').textContent = __wc_subst(tM.skip_days || 0);
+            document.getElementById('totalsMaleCant').textContent = __wc_subst(tM.cant_days || 0);
+            document.getElementById('totalsMaleInjured').textContent = __wc_subst(tM.injured_days || 0);
 
-            document.getElementById('totalsFemaleSkip').textContent = tF.skip_days || 0;
-            document.getElementById('totalsFemaleCant').textContent = tF.cant_days || 0;
-            document.getElementById('totalsFemaleInjured').textContent = tF.injured_days || 0;
+            document.getElementById('totalsFemaleSkip').textContent = __wc_subst(tF.skip_days || 0);
+            document.getElementById('totalsFemaleCant').textContent = __wc_subst(tF.cant_days || 0);
+            document.getElementById('totalsFemaleInjured').textContent = __wc_subst(tF.injured_days || 0);
 
             var repsToday = stateData.reps_today || {};
             var myReps = repsToday[role] || {};
@@ -736,12 +750,12 @@
             var rPush = myReps.pushups || 0;
             var rSquat = myReps.squats || 0;
 
-            document.getElementById('reps-crunches').textContent = rCrunch;
-            document.getElementById('reps-pushups').textContent = rPush;
-            document.getElementById('reps-squats').textContent = rSquat;
+            document.getElementById('reps-crunches').textContent = __wc_subst(rCrunch);
+            document.getElementById('reps-pushups').textContent = __wc_subst(rPush);
+            document.getElementById('reps-squats').textContent = __wc_subst(rSquat);
 
             document.getElementById('repsSummary').textContent =
-                rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats";
+                __wc_subst(rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats");
 
             var statusAll = stateData.status || {};
             var myStatus = statusAll[role] || {};
@@ -752,10 +766,10 @@
                 if (!btn) return;
                 if (done) {
                     btn.className = "exercise-action-btn done";
-                    btn.querySelector('.label').textContent = "erledigt ✔";
+                    btn.querySelector('.label').textContent = __wc_subst("erledigt ✔");
                 } else {
                     btn.className = "exercise-action-btn";
-                    btn.querySelector('.label').textContent = "erledigt";
+                    btn.querySelector('.label').textContent = __wc_subst("erledigt");
                 }
             }
 
@@ -768,13 +782,13 @@
             var otherSquatEl = document.getElementById('other-squats-status');
 
             if (otherCrunchEl) {
-                otherCrunchEl.textContent = otherName + (otherStatus.crunches_done ? " ✅" : " ❌");
+                otherCrunchEl.textContent = __wc_subst(otherName + (otherStatus.crunches_done ? " ✅" : " ❌"));
             }
             if (otherPushEl) {
-                otherPushEl.textContent = otherName + (otherStatus.pushups_done ? " ✅" : " ❌");
+                otherPushEl.textContent = __wc_subst(otherName + (otherStatus.pushups_done ? " ✅" : " ❌"));
             }
             if (otherSquatEl) {
-                otherSquatEl.textContent = otherName + (otherStatus.squats_done ? " ✅" : " ❌");
+                otherSquatEl.textContent = __wc_subst(otherName + (otherStatus.squats_done ? " ✅" : " ❌"));
             }
 
             var btnSkip = document.getElementById('btn-skip');
@@ -805,7 +819,7 @@
             if (statusSummary) {
                 var myHuman = buildHumanStatus(myStatus);
                 var otherHuman = buildHumanStatus(otherStatus);
-                statusSummary.textContent = "Du: " + myHuman + " • " + otherName + ": " + otherHuman;
+                statusSummary.textContent = __wc_subst("Du: " + myHuman + " • " + otherName + ": " + otherHuman);
             }
 
             if (stateData.cheater) {
