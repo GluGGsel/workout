@@ -1,50 +1,40 @@
 #!/bin/bash
 set -euo pipefail
 
-echo "=== workout-counter Installation startet ==="
-
 APP_USER="ubuntu"
 APP_NAME="workout-counter"
 APP_DIR="/home/${APP_USER}/${APP_NAME}"
+SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
+DROPIN_DIR="/etc/systemd/system/${APP_NAME}.service.d"
+DROPIN_FILE="${DROPIN_DIR}/env.conf"
 
-# Verzeichnis, in dem dieses Skript liegt (also dein Git-Checkout)
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "[1/6] Systempakete installieren..."
 apt update
-apt install -y python3 python3-venv python3-pip git gunicorn
+apt install -y python3 python3-venv python3-pip git gunicorn rsync curl
 
-echo "[2/6] Benutzer '${APP_USER}' prüfen..."
-if ! id "${APP_USER}" >/dev/null 2>&1; then
-  useradd -m -s /bin/bash "${APP_USER}"
-fi
+id "${APP_USER}" >/dev/null 2>&1 || useradd -m -s /bin/bash "${APP_USER}"
 
-echo "[3/6] Projekt nach ${APP_DIR} synchronisieren..."
 mkdir -p "${APP_DIR}"
-rsync -a --delete "${REPO_DIR}/" "${APP_DIR}/"
+
+[ -f "${APP_DIR}/state.json" ] && cp -a "${APP_DIR}/state.json" /tmp/state.json.$$
+
+rsync -a "${REPO_DIR}/" "${APP_DIR}/"
+
+[ -f /tmp/state.json.$$ ] && cp -a /tmp/state.json.$$ "${APP_DIR}/state.json"
 
 chown -R "${APP_USER}:${APP_USER}" "${APP_DIR}"
 
-echo "[4/6] Python venv & Dependencies..."
 cd "${APP_DIR}"
-if [ ! -d venv ]; then
-  sudo -u "${APP_USER}" python3 -m venv venv
-fi
+[ ! -d venv ] && sudo -u "${APP_USER}" python3 -m venv venv
 
 sudo -u "${APP_USER}" bash -lc "
-  set -e
+  cd '${APP_DIR}'
   source venv/bin/activate
-  if [ -f requirements.txt ]; then
-    pip install --upgrade pip
-    pip install -r requirements.txt
-  fi
+  pip install -r requirements.txt
 "
 
-echo "[5/6] systemd-Service einrichten..."
-
-SERVICE_FILE="/etc/systemd/system/${APP_NAME}.service"
-
-cat > "${SERVICE_FILE}" <<EOF
+cat > "${SERVICE_FILE}" <<EOT
 [Unit]
 Description=Workout Counter WebApp
 After=network.target
@@ -59,31 +49,28 @@ Restart=always
 
 [Install]
 WantedBy=multi-user.target
-EOF
+EOT
 
-echo "Alten Service 'workout.service' (falls vorhanden) deaktivieren..."
-if systemctl list-unit-files | grep -q '^workout.service'; then
-  systemctl stop workout.service || true
-  systemctl disable workout.service || true
+mkdir -p "${DROPIN_DIR}"
+if [ -f "${APP_DIR}/systemd/workout-counter.env.conf" ]; then
+  cp -a "${APP_DIR}/systemd/workout-counter.env.conf" "${DROPIN_FILE}"
+else
+  cat > "${DROPIN_FILE}" <<EOT
+[Service]
+EnvironmentFile=${APP_DIR}/config/instance.env
+EOT
 fi
 
-echo "Neuen Service ${APP_NAME}.service aktivieren..."
+mkdir -p "${APP_DIR}/config"
+[ -f "${APP_DIR}/config/instance.env" ] || cat > "${APP_DIR}/config/instance.env" <<EOT
+WORKOUT_MALE_NAME=Person A
+WORKOUT_FEMALE_NAME=Person B
+WORKOUT_CANT_PASSWORD=reset
+EOT
+
+chmod 600 "${APP_DIR}/config/instance.env"
+chown "${APP_USER}:${APP_USER}" "${APP_DIR}/config/instance.env"
+
 systemctl daemon-reload
 systemctl enable "${APP_NAME}.service"
 systemctl restart "${APP_NAME}.service"
-
-echo "[6/6] Status prüfen..."
-systemctl --no-pager --full status "${APP_NAME}.service" || true
-
-IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
-if [ -z "${IP}" ]; then
-  IP="<SERVER-IP>"
-fi
-
-echo ""
-echo "==========================================="
-echo "Installation abgeschlossen!"
-echo "App erreichbar unter:"
-echo "   http://${IP}:8000/?view=mann"
-echo "   http://${IP}:8000/?view=frau"
-echo "==========================================="
