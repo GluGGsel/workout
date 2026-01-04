@@ -1,0 +1,61 @@
+{
+  "day": 26,
+  "start_date": "2025-12-09",
+  "reps": {
+    "male": {
+      "squats": 40,
+      "situps": 40,
+      "pushups": 40
+    },
+    "female": {
+      "squats": 20,
+      "situps": 20,
+      "pushups": 20
+    }
+  },
+  "done": {
+    "male": {
+      "squats": true,
+      "situps": true,
+      "pushups": true
+    },
+    "female": {
+      "squats": false,
+      "situps": false,
+      "pushups": false
+    }
+  },
+  "overall": {
+    "male": {
+      "squats": 715,
+      "situps": 715,
+      "pushups": 715
+    },
+    "female": {
+      "squats": 416,
+      "situps": 416,
+      "pushups": 416
+    }
+  },
+  "skip": {
+    "male": [],
+    "female": [
+      5
+    ]
+  },
+  "injured": {
+    "male": [],
+    "female": []
+  },
+  "cant": {
+    "male": [],
+    "female": [
+      6,
+      22
+    ]
+  },
+  "cheater": {
+    "male": [],
+    "female": []
+  }
+}
