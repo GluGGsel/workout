@@ -79,7 +79,7 @@ sudo apt install -y git
 ### 2) Repository klonen
 ```bash
 cd /home/ubuntu
-git clone https://github.com/GluGGsel/workout.git workout-counter
+git clone https://github.com/GluGGsel/workout.git workout
 cd workout-counter
 ```
 
