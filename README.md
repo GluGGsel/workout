@@ -103,6 +103,7 @@ Die **lokale Instanz** wird über `instance.env` konfiguriert
 (diese Datei gehört **nicht** ins Public Repo).
 
 ```bash
+cp config/instance.env.example config/instance.env
 nano config/instance.env
 ```
 
