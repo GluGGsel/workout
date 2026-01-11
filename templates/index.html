@@ -200,17 +200,6 @@
             color: #ecfdf5;
         }
 
-        /* NEU: per-exercise cant button (optisch wie global cant) */
-        .exercise-action-btn.cant-ex {
-            background: rgba(59, 130, 246, 0.18);
-            color: #bfdbfe;
-        }
-
-        .exercise-action-btn.cant-ex.active {
-            filter: brightness(1.25);
-            box-shadow: 0 0 0 1px rgba(248, 250, 252, 0.35);
-        }
-
         .exercise-action-btn:disabled {
             opacity: 0.4;
             cursor: not-allowed;
@@ -261,6 +250,12 @@
         .status-btn.cant {
             background: rgba(59, 130, 246, 0.18);
             color: #bfdbfe;
+        }
+
+        /* NEU: Sport-Button */
+        .status-btn.sport {
+            background: rgba(16, 185, 129, 0.18);
+            color: #a7f3d0;
         }
 
         .status-btn:disabled {
@@ -343,38 +338,28 @@
             color: #fecaca;
         }
 
-        .small {
-            font-size: 0.8rem;
-        }
+        .small { font-size: 0.8rem; }
 
         @media (max-width: 600px) {
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-            }
-            .role-block {
-                text-align: left;
-            }
+            header { flex-direction: column; align-items: flex-start; }
+            .role-block { text-align: left; }
         }
     </style>
 
-<script>
-  // placeholder substitution for phrases coming from static JSON or API
-  window.__WC_NAMES__ = {
-    male: "{{ male_name }}",
-    female: "{{ female_name }}"
-  };
-  window.__wc_subst = function (txt) {
-    if (typeof txt !== "string") return txt;
-    return txt
-      .replaceAll("{male}", window.__WC_NAMES__.male)
-      .replaceAll("{female}", window.__WC_NAMES__.female);
-  };
-</script>
-
+    <script>
+      window.__WC_NAMES__ = { male: "{{ male_name }}", female: "{{ female_name }}" };
+      window.__wc_subst = function (txt) {
+        if (typeof txt !== "string") return txt;
+        return txt
+          .replaceAll("{male}", window.__WC_NAMES__.male)
+          .replaceAll("{female}", window.__WC_NAMES__.female);
+      };
+    </script>
 </head>
+
 <body data-role="{{ role }}" data-male-name="{{ male_name }}" data-female-name="{{ female_name }}">
 <div class="app">
+
     <header>
         <div class="date-block">
             <div class="date-main">
@@ -402,33 +387,34 @@
             </div>
         </div>
         <div class="totals-grid">
-            <!-- Reps Mann -->
             <div class="totals-item male-totals">
                 <div class="totals-title"><strong>Total {{ male_name }}</strong></div>
                 <div class="totals-line"><span id="totalsMaleCrunches">–</span> Crunches</div>
                 <div class="totals-line"><span id="totalsMaleSquats">–</span> Squats</div>
                 <div class="totals-line"><span id="totalsMalePushups">–</span> Pushups</div>
             </div>
-            <!-- Reps Frau -->
+
             <div class="totals-item female-totals">
                 <div class="totals-title"><strong>Total {{ female_name }}</strong></div>
                 <div class="totals-line"><span id="totalsFemaleCrunches">–</span> Crunches</div>
                 <div class="totals-line"><span id="totalsFemaleSquats">–</span> Squats</div>
                 <div class="totals-line"><span id="totalsFemalePushups">–</span> Pushups</div>
             </div>
-            <!-- Spezialtage Mann -->
+
             <div class="totals-item male-totals">
                 <div class="totals-title"><strong>Spezialtage {{ male_name }}</strong></div>
                 <div class="totals-line"><span id="totalsMaleSkip">–</span> Skips</div>
                 <div class="totals-line"><span id="totalsMaleInjured">–</span> krank/verletzt</div>
                 <div class="totals-line"><span id="totalsMaleCant">–</span> Ich kann nicht mehr!</div>
+                <div class="totals-line"><span id="totalsMaleSport">–</span> Sporttage</div>
             </div>
-            <!-- Spezialtage Frau -->
+
             <div class="totals-item female-totals">
                 <div class="totals-title"><strong>Spezialtage {{ female_name }}</strong></div>
                 <div class="totals-line"><span id="totalsFemaleSkip">–</span> Skips</div>
                 <div class="totals-line"><span id="totalsFemaleInjured">–</span> krank/verletzt</div>
                 <div class="totals-line"><span id="totalsFemaleCant">–</span> Ich kann nicht mehr!</div>
+                <div class="totals-line"><span id="totalsFemaleSport">–</span> Sporttage</div>
             </div>
         </div>
     </section>
@@ -452,13 +438,6 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-
-                <!-- NEU: pro Übung -10 (toggle/undo) -->
-                <button class="exercise-action-btn cant-ex" id="btn-cant-crunches" type="button">
-                    <span class="icon">🥵</span>
-                    <span class="label">Ich kann nicht mehr (−10)</span>
-                </button>
-
                 <div class="exercise-other-status" id="other-crunches-status"></div>
             </div>
 
@@ -471,13 +450,6 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-
-                <!-- NEU: pro Übung -10 (toggle/undo) -->
-                <button class="exercise-action-btn cant-ex" id="btn-cant-pushups" type="button">
-                    <span class="icon">🥵</span>
-                    <span class="label">Ich kann nicht mehr (−10)</span>
-                </button>
-
                 <div class="exercise-other-status" id="other-pushups-status"></div>
             </div>
 
@@ -490,18 +462,17 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-
-                <!-- NEU: pro Übung -10 (toggle/undo) -->
-                <button class="exercise-action-btn cant-ex" id="btn-cant-squats" type="button">
-                    <span class="icon">🥵</span>
-                    <span class="label">Ich kann nicht mehr (−10)</span>
-                </button>
-
                 <div class="exercise-other-status" id="other-squats-status"></div>
             </div>
         </div>
 
         <div class="status-row">
+            <!-- NEU: Sport -->
+            <button class="status-btn sport" id="btn-sport" type="button">
+                <span class="icon">🏅</span>
+                <span>heute Sport gemacht</span>
+            </button>
+
             <button class="status-btn injured" id="btn-injured" type="button">
                 <span class="icon">❌</span>
                 <span>krank / verletzt</span>
@@ -510,8 +481,6 @@
                 <span class="icon">😴</span>
                 <span>Skip</span>
             </button>
-
-            <!-- global cant bleibt bewusst (bestehend) -->
             <button class="status-btn cant" id="btn-cant" type="button">
                 <span class="icon">🥵</span>
                 <span>Ich kann nicht mehr!</span>
@@ -519,21 +488,18 @@
         </div>
 
         <div id="statusSummary" class="status-summary"></div>
-
         <div id="messageBox" class="message-bar" style="display:none;"></div>
     </section>
 
-    <!-- Phrase of the day -->
+    <!-- Phrase -->
     <section class="phrase-card">
         <div class="phrase-label">
             <span id="phraseCategoryBadge" class="badge">–</span>
         </div>
-        <div class="phrase-text" id="phraseText">
-            …
-        </div>
+        <div class="phrase-text" id="phraseText">…</div>
     </section>
 
-    <!-- Nächster Tag -->
+    <!-- Next day -->
     <section class="card">
         <div class="card-header">
             <div class="card-title">Tag abschließen</div>
@@ -550,510 +516,380 @@
 </div>
 
 <script>
-    (function () {
-        var role = document.body.getAttribute('data-role');
-        var maleName = document.body.getAttribute('data-male-name');
-        var femaleName = document.body.getAttribute('data-female-name');
+(function () {
+    var role = document.body.getAttribute('data-role');
+    var maleName = document.body.getAttribute('data-male-name');
+    var femaleName = document.body.getAttribute('data-female-name');
 
-        var stateData = null;
-        var phrasesCache = {}; // category -> array
+    var stateData = null;
+    var phrasesCache = {};
 
-        function xhrGet(url, callback) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('GET', url, true);
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var json = JSON.parse(xhr.responseText);
-                            callback(null, json);
-                        } catch (e) {
-                            callback(e);
-                        }
-                    } else {
-                        callback(new Error('HTTP ' + xhr.status));
-                    }
-                }
-            };
-            xhr.send();
-        }
-
-        function xhrPost(url, body, callback) {
-            var xhr = new XMLHttpRequest();
-            xhr.open('POST', url, true);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            var json = JSON.parse(xhr.responseText);
-                            callback(null, json);
-                        } catch (e) {
-                            callback(e);
-                        }
-                    } else {
-                        callback(new Error('HTTP ' + xhr.status));
-                    }
-                }
-            };
-            xhr.send(JSON.stringify(body));
-        }
-
-        function showMessage(text, type) {
-            var box = document.getElementById('messageBox');
-            if (!text) {
-                box.style.display = 'none';
-                box.className = 'message-bar';
-                box.innerHTML = '';
-                return;
-            }
-            var cls = 'message-bar ';
-            if (type === 'error') {
-                cls += 'message-error';
-            } else if (type === 'success') {
-                cls += 'message-success';
-            } else {
-                cls += 'message-info';
-            }
-            box.className = cls;
-            box.textContent = __wc_subst(text);
-            box.style.display = 'block';
-        }
-
-        function pickDeterministic(phrasesArray, day, salt) {
-            if (!phrasesArray || !phrasesArray.length) {
-                return "";
-            }
-            var len = phrasesArray.length;
-            var idx = ((day - 1) + salt) % len;
-            return phrasesArray[idx];
-        }
-
-        function getPhraseCategoryLabel(cat) {
-            if (cat === 'none_done') return 'Keiner fertig';
-            if (cat === 'all_done') return 'Beide fertig';
-            if (cat.indexOf('one_done_') === 0) return 'Nur einer fertig';
-            if (cat.indexOf('skip_') === 0) return 'Skip-Tag';
-            if (cat.indexOf('cant_') === 0) return 'Ich kann nicht mehr!';
-            if (cat.indexOf('injured_') === 0) return 'krank / verletzt';
-            if (cat.indexOf('cheater_') === 0) return 'Cheater-Alarm';
-            return cat || 'Unbekannt';
-        }
-
-        // mit Cache-Buster, damit geänderte JSONs sofort greifen
-        function loadPhraseCategory(category, cb) {
-            if (phrasesCache.hasOwnProperty(category)) {
-                cb(null, phrasesCache[category]);
-                return;
-            }
-            var url =
-                '/static/phrases/' +
-                encodeURIComponent(category) +
-                '.json?v=' + Date.now();
-
-            xhrGet(url, function (err, data) {
-                var textEl = document.getElementById('phraseText');
-
-                if (err) {
-                    textEl.textContent = __wc_subst("Fehler beim Laden der Sprüche: " + err.message);
-                    cb(err);
-                    return;
-                }
-
-                phrasesCache[category] = data;
-                cb(null, data);
-            });
-        }
-
-        function updatePhrase() {
-            if (!stateData || !stateData.phrase_category) {
-                return;
-            }
-
-            var day = stateData.day || 1;
-            var category = stateData.phrase_category;
-
-            loadPhraseCategory(category, function (err, phrasesArray) {
-                var labelEl = document.getElementById('phraseCategoryBadge');
-                var textEl = document.getElementById('phraseText');
-
-                labelEl.textContent = __wc_subst(getPhraseCategoryLabel(category));
-                if (category.indexOf('cheater_') === 0) {
-                    labelEl.className = 'badge cheater-badge';
+    function xhrGet(url, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url, true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try { callback(null, JSON.parse(xhr.responseText)); }
+                    catch (e) { callback(e); }
                 } else {
-                    labelEl.className = 'badge';
+                    callback(new Error('HTTP ' + xhr.status));
                 }
+            }
+        };
+        xhr.send();
+    }
 
-                if (err) {
-                    return;
+    function xhrPost(url, body, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try { callback(null, JSON.parse(xhr.responseText)); }
+                    catch (e) { callback(e); }
+                } else {
+                    callback(new Error('HTTP ' + xhr.status));
                 }
+            }
+        };
+        xhr.send(JSON.stringify(body));
+    }
 
-                var salt = 0;
-                if (category.indexOf('one_done_') === 0) { salt = 1; }
-                else if (category === 'all_done') { salt = 2; }
-                else if (category.indexOf('skip_') === 0) { salt = 3; }
-                else if (category.indexOf('cant_') === 0) { salt = 4; }
-                else if (category.indexOf('injured_') === 0) { salt = 5; }
-                else if (category.indexOf('cheater_') === 0) { salt = 6; }
-
-                var phrase = pickDeterministic(phrasesArray, day, salt);
-                textEl.textContent = __wc_subst(phrase || '…');
-            });
+    function showMessage(text, type) {
+        var box = document.getElementById('messageBox');
+        if (!text) {
+            box.style.display = 'none';
+            box.className = 'message-bar';
+            box.innerHTML = '';
+            return;
         }
+        var cls = 'message-bar ';
+        if (type === 'error') cls += 'message-error';
+        else if (type === 'success') cls += 'message-success';
+        else cls += 'message-info';
 
-        function buildHumanStatus(statusObj) {
-            if (!statusObj) return 'noch nichts gemacht';
+        box.className = cls;
+        box.textContent = __wc_subst(text);
+        box.style.display = 'block';
+    }
 
-            if (statusObj.injured) return 'krank/verletzt';
-            if (statusObj.cant) return 'Ich kann nicht mehr!';
-            if (statusObj.skip) return 'Skip';
+    function pickDeterministic(arr, day, salt) {
+        if (!arr || !arr.length) return "";
+        var idx = ((day - 1) + salt) % arr.length;
+        return arr[idx];
+    }
 
-            var doneCount = 0;
-            if (statusObj.crunches_done) doneCount++;
-            if (statusObj.pushups_done) doneCount++;
-            if (statusObj.squats_done) doneCount++;
+    function getPhraseCategoryLabel(cat) {
+        if (cat === 'none_done') return 'Keiner fertig';
+        if (cat === 'all_done') return 'Beide fertig';
+        if (cat.indexOf('one_done_') === 0) return 'Nur einer fertig';
+        if (cat.indexOf('skip_') === 0) return 'Skip-Tag';
+        if (cat.indexOf('cant_') === 0) return 'Ich kann nicht mehr!';
+        if (cat.indexOf('injured_') === 0) return 'krank / verletzt';
+        if (cat.indexOf('cheater_') === 0) return 'Cheater-Alarm';
+        return cat || 'Unbekannt';
+    }
 
-            if (doneCount === 0) return 'noch nichts gemacht';
-            if (doneCount === 3) return 'alle Übungen erledigt';
-
-            return 'teilweise erledigt';
-        }
-
-        function updateUI() {
-            if (!stateData) {
+    function loadPhraseCategory(category, cb) {
+        if (phrasesCache.hasOwnProperty(category)) { cb(null, phrasesCache[category]); return; }
+        var url = '/static/phrases/' + encodeURIComponent(category) + '.json?v=' + Date.now();
+        xhrGet(url, function (err, data) {
+            var textEl = document.getElementById('phraseText');
+            if (err) {
+                textEl.textContent = __wc_subst("Fehler beim Laden der Sprüche: " + err.message);
+                cb(err);
                 return;
             }
-
-            document.getElementById('weekdayLabel').textContent = __wc_subst(stateData.weekday || '–');
-            document.getElementById('dateLabel').textContent = __wc_subst(stateData.date || '–');
-            document.getElementById('dayLabel').textContent = __wc_subst(stateData.day || '–');
-
-            var startDisplay = stateData.start_date_display || stateData.start_date || '–';
-            document.getElementById('startDateLabel').textContent = __wc_subst(startDisplay);
-            document.getElementById('totalsStartLabel').textContent = __wc_subst(startDisplay);
-
-            var otherRole = (role === 'mann') ? 'frau' : 'mann';
-            var myName = (role === 'mann') ? maleName : femaleName;
-            var otherName = (role === 'mann') ? femaleName : maleName;
-
-            if (role === 'mann') {
-                document.getElementById('roleTitle').textContent = __wc_subst(maleName + " – deine Seite");
-                document.getElementById('roleDesc').textContent = __wc_subst("Nur du kannst hier abhaken.");
-                document.getElementById('currentNameLabel').textContent = __wc_subst(maleName);
-            } else {
-                document.getElementById('roleTitle').textContent = __wc_subst(femaleName + " – deine Seite");
-                document.getElementById('roleDesc').textContent = __wc_subst("Nur du kannst hier abhaken.");
-                document.getElementById('currentNameLabel').textContent = __wc_subst(femaleName);
-            }
-
-            var totals = stateData.totals || {};
-            var tM = totals.mann || {};
-            var tF = totals.frau || {};
-
-            document.getElementById('totalsMaleCrunches').textContent = __wc_subst(tM.crunches || 0);
-            document.getElementById('totalsMaleSquats').textContent = __wc_subst(tM.squats || 0);
-            document.getElementById('totalsMalePushups').textContent = __wc_subst(tM.pushups || 0);
-
-            document.getElementById('totalsFemaleCrunches').textContent = __wc_subst(tF.crunches || 0);
-            document.getElementById('totalsFemaleSquats').textContent = __wc_subst(tF.squats || 0);
-            document.getElementById('totalsFemalePushups').textContent = __wc_subst(tF.pushups || 0);
-
-            document.getElementById('totalsMaleSkip').textContent = __wc_subst(tM.skip_days || 0);
-            document.getElementById('totalsMaleCant').textContent = __wc_subst(tM.cant_days || 0);
-            document.getElementById('totalsMaleInjured').textContent = __wc_subst(tM.injured_days || 0);
-
-            document.getElementById('totalsFemaleSkip').textContent = __wc_subst(tF.skip_days || 0);
-            document.getElementById('totalsFemaleCant').textContent = __wc_subst(tF.cant_days || 0);
-            document.getElementById('totalsFemaleInjured').textContent = __wc_subst(tF.injured_days || 0);
-
-            var repsToday = stateData.reps_today || {};
-            var myReps = repsToday[role] || {};
-
-            var rCrunch = myReps.crunches || 0;
-            var rPush = myReps.pushups || 0;
-            var rSquat = myReps.squats || 0;
-
-            document.getElementById('reps-crunches').textContent = __wc_subst(rCrunch);
-            document.getElementById('reps-pushups').textContent = __wc_subst(rPush);
-            document.getElementById('reps-squats').textContent = __wc_subst(rSquat);
-
-            document.getElementById('repsSummary').textContent =
-                __wc_subst(rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats");
-
-            var statusAll = stateData.status || {};
-            var myStatus = statusAll[role] || {};
-            var otherStatus = statusAll[otherRole] || {};
-
-            function updateExerciseButton(id, done) {
-                var btn = document.getElementById('btn-' + id);
-                if (!btn) return;
-                if (done) {
-                    btn.className = "exercise-action-btn done";
-                    btn.querySelector('.label').textContent = __wc_subst("erledigt ✔");
-                } else {
-                    btn.className = "exercise-action-btn";
-                    btn.querySelector('.label').textContent = __wc_subst("erledigt");
-                }
-            }
-
-            updateExerciseButton('crunches', !!myStatus.crunches_done);
-            updateExerciseButton('pushups', !!myStatus.pushups_done);
-            updateExerciseButton('squats', !!myStatus.squats_done);
-
-            // Other status display
-            var otherCrunchEl = document.getElementById('other-crunches-status');
-            var otherPushEl = document.getElementById('other-pushups-status');
-            var otherSquatEl = document.getElementById('other-squats-status');
-
-            if (otherCrunchEl) {
-                otherCrunchEl.textContent = __wc_subst(otherName + (otherStatus.crunches_done ? " ✅" : " ❌"));
-            }
-            if (otherPushEl) {
-                otherPushEl.textContent = __wc_subst(otherName + (otherStatus.pushups_done ? " ✅" : " ❌"));
-            }
-            if (otherSquatEl) {
-                otherSquatEl.textContent = __wc_subst(otherName + (otherStatus.squats_done ? " ✅" : " ❌"));
-            }
-
-            // global buttons
-            var btnSkip = document.getElementById('btn-skip');
-            var btnInj = document.getElementById('btn-injured');
-            var btnCant = document.getElementById('btn-cant');
-
-            var canSkipAll = stateData.can_skip || {};
-            var canCantAll = stateData.can_cant || {};
-
-            var canSkip = typeof canSkipAll[role] === 'boolean' ? canSkipAll[role] : true;
-            var canCant = typeof canCantAll[role] === 'boolean' ? canCantAll[role] : true;
-
-            if (btnSkip) {
-                btnSkip.disabled = !canSkip && !myStatus.skip;
-                btnSkip.classList.toggle('active', !!myStatus.skip);
-            }
-            if (btnCant) {
-                btnCant.disabled = !canCant && !myStatus.cant;
-                btnCant.classList.toggle('active', !!myStatus.cant);
-            }
-            if (btnInj) {
-                btnInj.disabled = false;
-                btnInj.classList.toggle('active', !!myStatus.injured);
-            }
-
-            // NEU: per-exercise cant toggle buttons
-            var cantExAll = stateData.cant_exercise || {};
-            var myCantEx = cantExAll[role] || {};
-            var canCantExAll = stateData.can_cant_exercise || {};
-            var myCanCantEx = canCantExAll[role] || {};
-
-            function updateCantExButton(external) {
-                var btn = document.getElementById('btn-cant-' + external);
-                if (!btn) return;
-
-                var pressed = !!myCantEx[external];
-                var canPress = (typeof myCanCantEx[external] === 'boolean') ? myCanCantEx[external] : true;
-
-                if (pressed) {
-                    btn.classList.add('active');
-                    btn.querySelector('.label').textContent = __wc_subst("Rückgängig (+" + 10 + ")");
-                    btn.disabled = false;
-                } else {
-                    btn.classList.remove('active');
-                    btn.querySelector('.label').textContent = __wc_subst("Ich kann nicht mehr (−" + 10 + ")");
-                    btn.disabled = !canPress;
-                }
-            }
-
-            updateCantExButton('crunches');
-            updateCantExButton('pushups');
-            updateCantExButton('squats');
-
-            var statusSummary = document.getElementById('statusSummary');
-            if (statusSummary) {
-                var myHuman = buildHumanStatus(myStatus);
-                var otherHuman = buildHumanStatus(otherStatus);
-                statusSummary.textContent = __wc_subst("Du: " + myHuman + " • " + otherName + ": " + otherHuman);
-            }
-
-            if (stateData.cheater) {
-                showMessage(stateData.cheater_message || "Cheater-Versuch erkannt. Nice try, aber nein.", "error");
-            } else if (stateData.message) {
-                showMessage(stateData.message, "info");
-            } else {
-                showMessage("", "");
-            }
-
-            updatePhrase();
-        }
-
-        function loadState() {
-            xhrGet('/api/state?role=' + encodeURIComponent(role), function (err, data) {
-                if (err) {
-                    showMessage("Fehler beim Laden des Status: " + err.message, "error");
-                    return;
-                }
-                stateData = data;
-                updateUI();
-            });
-        }
-
-        function sendAction(type, extra) {
-            var body = { role: role, action: type };
-            if (extra) {
-                for (var k in extra) {
-                    if (extra.hasOwnProperty(k)) {
-                        body[k] = extra[k];
-                    }
-                }
-            }
-
-            xhrPost('/api/action', body, function (err, data) {
-                if (err) {
-                    showMessage("Aktion fehlgeschlagen: " + err.message, "error");
-                    return;
-                }
-                stateData = data;
-                updateUI();
-            });
-        }
-
-        function getMyStatus() {
-            if (!stateData || !stateData.status) return {};
-            return stateData.status[role] || {};
-        }
-
-        function askCantPassword(callback) {
-            var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr!“ zu bestätigen:");
-            if (pw === null) return;
-            callback(pw);
-        }
-
-        function askCantPasswordExercise(exLabel, callback) {
-            var pw = window.prompt("Passwort für „Ich kann nicht mehr“ (" + exLabel + "):");
-            if (pw === null) return;
-            callback(pw);
-        }
-
-        function bindEvents() {
-            var btnCrunch = document.getElementById('btn-crunches');
-            var btnPush = document.getElementById('btn-pushups');
-            var btnSquat = document.getElementById('btn-squats');
-            var btnSkip = document.getElementById('btn-skip');
-            var btnInj = document.getElementById('btn-injured');
-            var btnCant = document.getElementById('btn-cant');
-            var btnNext = document.getElementById('btn-nextday');
-
-            var btnCantCrunch = document.getElementById('btn-cant-crunches');
-            var btnCantPush = document.getElementById('btn-cant-pushups');
-            var btnCantSquat = document.getElementById('btn-cant-squats');
-
-            // Übungen: Toggle erledigt / unerledigt
-            if (btnCrunch) {
-                btnCrunch.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isDone = !!myStatus.crunches_done;
-                    var actionType = isDone ? 'exercise_undo' : 'exercise';
-                    sendAction(actionType, { exercise: 'crunches' });
-                };
-            }
-            if (btnPush) {
-                btnPush.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isDone = !!myStatus.pushups_done;
-                    var actionType = isDone ? 'exercise_undo' : 'exercise';
-                    sendAction(actionType, { exercise: 'pushups' });
-                };
-            }
-            if (btnSquat) {
-                btnSquat.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isDone = !!myStatus.squats_done;
-                    var actionType = isDone ? 'exercise_undo' : 'exercise';
-                    sendAction(actionType, { exercise: 'squats' });
-                };
-            }
-
-            // NEU: per-exercise cant toggle
-            function bindCantEx(btn, exerciseExternal, label) {
-                if (!btn) return;
-                btn.onclick = function () {
-                    var cantExAll = (stateData && stateData.cant_exercise) ? stateData.cant_exercise : {};
-                    var myCant = cantExAll[role] || {};
-                    var pressed = !!myCant[exerciseExternal];
-
-                    if (pressed) {
-                        sendAction('cant_exercise_undo', { exercise: exerciseExternal });
-                    } else {
-                        askCantPasswordExercise(label, function (pw) {
-                            sendAction('cant_exercise', { exercise: exerciseExternal, password: pw });
-                        });
-                    }
-                };
-            }
-
-            bindCantEx(btnCantCrunch, 'crunches', 'Crunches');
-            bindCantEx(btnCantPush, 'pushups', 'Pushups');
-            bindCantEx(btnCantSquat, 'squats', 'Squats');
-
-            // Skip: Toggle
-            if (btnSkip) {
-                btnSkip.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isSkip = !!myStatus.skip;
-                    var actionType = isSkip ? 'skip_undo' : 'skip';
-                    sendAction(actionType, {});
-                };
-            }
-
-            // krank/verletzt: Toggle
-            if (btnInj) {
-                btnInj.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isInjured = !!myStatus.injured;
-                    var actionType = isInjured ? 'injured_undo' : 'injured';
-                    sendAction(actionType, {});
-                };
-            }
-
-            // global cant: Toggle (Passwort nur beim Setzen)
-            if (btnCant) {
-                btnCant.onclick = function () {
-                    var myStatus = getMyStatus();
-                    var isCant = !!myStatus.cant;
-
-                    if (isCant) {
-                        sendAction('cant_undo', {});
-                    } else {
-                        askCantPassword(function (pw) {
-                            sendAction('cant', { password: pw });
-                        });
-                    }
-                };
-            }
-
-            // Nächster Tag
-            if (btnNext) {
-                btnNext.onclick = function () {
-                    if (!window.confirm("Sicher? Nächster Tag kann nicht rückgängig gemacht werden.")) {
-                        return;
-                    }
-                    xhrPost('/api/nextday', {}, function (err, data) {
-                        if (err) {
-                            showMessage("Konnte nächsten Tag nicht starten: " + err.message, "error");
-                            return;
-                        }
-                        stateData = data;
-                        updateUI();
-                        showMessage("Neuer Tag gestartet.", "success");
-                    });
-                };
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            bindEvents();
-            loadState();
+            phrasesCache[category] = data;
+            cb(null, data);
         });
-    })();
+    }
+
+    function updatePhrase() {
+        if (!stateData || !stateData.phrase_category) return;
+        var day = stateData.day || 1;
+        var category = stateData.phrase_category;
+
+        loadPhraseCategory(category, function (err, phrasesArray) {
+            var labelEl = document.getElementById('phraseCategoryBadge');
+            var textEl = document.getElementById('phraseText');
+
+            labelEl.textContent = __wc_subst(getPhraseCategoryLabel(category));
+            labelEl.className = (category.indexOf('cheater_') === 0) ? 'badge cheater-badge' : 'badge';
+
+            if (err) return;
+
+            var salt = 0;
+            if (category.indexOf('one_done_') === 0) salt = 1;
+            else if (category === 'all_done') salt = 2;
+            else if (category.indexOf('skip_') === 0) salt = 3;
+            else if (category.indexOf('cant_') === 0) salt = 4;
+            else if (category.indexOf('injured_') === 0) salt = 5;
+            else if (category.indexOf('cheater_') === 0) salt = 6;
+
+            var phrase = pickDeterministic(phrasesArray, day, salt);
+            textEl.textContent = __wc_subst(phrase || '…');
+        });
+    }
+
+    function buildHumanStatus(s) {
+        if (!s) return 'noch nichts gemacht';
+        if (s.injured) return 'krank/verletzt';
+        if (s.cant) return 'Ich kann nicht mehr!';
+        if (s.skip) return 'Skip';
+        if (s.sport) return 'Sport gemacht';
+        var doneCount = 0;
+        if (s.crunches_done) doneCount++;
+        if (s.pushups_done) doneCount++;
+        if (s.squats_done) doneCount++;
+        if (doneCount === 0) return 'noch nichts gemacht';
+        if (doneCount === 3) return 'alle Übungen erledigt';
+        return 'teilweise erledigt';
+    }
+
+    function updateUI() {
+        if (!stateData) return;
+
+        document.getElementById('weekdayLabel').textContent = __wc_subst(stateData.weekday || '–');
+        document.getElementById('dateLabel').textContent = __wc_subst(stateData.date || '–');
+        document.getElementById('dayLabel').textContent = __wc_subst(stateData.day || '–');
+
+        var startDisplay = stateData.start_date_display || stateData.start_date || '–';
+        document.getElementById('startDateLabel').textContent = __wc_subst(startDisplay);
+        document.getElementById('totalsStartLabel').textContent = __wc_subst(startDisplay);
+
+        var otherRole = (role === 'mann') ? 'frau' : 'mann';
+        var myName = (role === 'mann') ? maleName : femaleName;
+        var otherName = (role === 'mann') ? femaleName : maleName;
+
+        if (role === 'mann') {
+            document.getElementById('roleTitle').textContent = __wc_subst(maleName + " – deine Seite");
+            document.getElementById('roleDesc').textContent = __wc_subst("Nur du kannst hier abhaken.");
+            document.getElementById('currentNameLabel').textContent = __wc_subst(maleName);
+        } else {
+            document.getElementById('roleTitle').textContent = __wc_subst(femaleName + " – deine Seite");
+            document.getElementById('roleDesc').textContent = __wc_subst("Nur du kannst hier abhaken.");
+            document.getElementById('currentNameLabel').textContent = __wc_subst(femaleName);
+        }
+
+        var totals = stateData.totals || {};
+        var tM = totals.mann || {};
+        var tF = totals.frau || {};
+
+        document.getElementById('totalsMaleCrunches').textContent = __wc_subst(tM.crunches || 0);
+        document.getElementById('totalsMaleSquats').textContent   = __wc_subst(tM.squats || 0);
+        document.getElementById('totalsMalePushups').textContent  = __wc_subst(tM.pushups || 0);
+
+        document.getElementById('totalsFemaleCrunches').textContent = __wc_subst(tF.crunches || 0);
+        document.getElementById('totalsFemaleSquats').textContent   = __wc_subst(tF.squats || 0);
+        document.getElementById('totalsFemalePushups').textContent  = __wc_subst(tF.pushups || 0);
+
+        document.getElementById('totalsMaleSkip').textContent    = __wc_subst(tM.skip_days || 0);
+        document.getElementById('totalsMaleCant').textContent    = __wc_subst(tM.cant_days || 0);
+        document.getElementById('totalsMaleInjured').textContent = __wc_subst(tM.injured_days || 0);
+        document.getElementById('totalsMaleSport').textContent   = __wc_subst(tM.sport_days || 0);
+
+        document.getElementById('totalsFemaleSkip').textContent    = __wc_subst(tF.skip_days || 0);
+        document.getElementById('totalsFemaleCant').textContent    = __wc_subst(tF.cant_days || 0);
+        document.getElementById('totalsFemaleInjured').textContent = __wc_subst(tF.injured_days || 0);
+        document.getElementById('totalsFemaleSport').textContent   = __wc_subst(tF.sport_days || 0);
+
+        var repsToday = stateData.reps_today || {};
+        var myReps = repsToday[role] || {};
+        var rCrunch = myReps.crunches || 0;
+        var rPush   = myReps.pushups || 0;
+        var rSquat  = myReps.squats || 0;
+
+        document.getElementById('reps-crunches').textContent = __wc_subst(rCrunch);
+        document.getElementById('reps-pushups').textContent  = __wc_subst(rPush);
+        document.getElementById('reps-squats').textContent   = __wc_subst(rSquat);
+
+        document.getElementById('repsSummary').textContent =
+            __wc_subst(rCrunch + " Crunches • " + rPush + " Pushups • " + rSquat + " Squats");
+
+        var statusAll = stateData.status || {};
+        var myStatus = statusAll[role] || {};
+        var otherStatus = statusAll[otherRole] || {};
+
+        function updateExerciseButton(id, done) {
+            var btn = document.getElementById('btn-' + id);
+            if (!btn) return;
+            if (done) {
+                btn.className = "exercise-action-btn done";
+                btn.querySelector('.label').textContent = __wc_subst("erledigt ✔");
+            } else {
+                btn.className = "exercise-action-btn";
+                btn.querySelector('.label').textContent = __wc_subst("erledigt");
+            }
+        }
+
+        updateExerciseButton('crunches', !!myStatus.crunches_done);
+        updateExerciseButton('pushups', !!myStatus.pushups_done);
+        updateExerciseButton('squats',  !!myStatus.squats_done);
+
+        var otherCrunchEl = document.getElementById('other-crunches-status');
+        var otherPushEl   = document.getElementById('other-pushups-status');
+        var otherSquatEl  = document.getElementById('other-squats-status');
+
+        if (otherCrunchEl) otherCrunchEl.textContent = __wc_subst(otherName + (otherStatus.crunches_done ? " ✅" : " ❌"));
+        if (otherPushEl)   otherPushEl.textContent   = __wc_subst(otherName + (otherStatus.pushups_done ? " ✅" : " ❌"));
+        if (otherSquatEl)  otherSquatEl.textContent  = __wc_subst(otherName + (otherStatus.squats_done ? " ✅" : " ❌"));
+
+        var btnSkip  = document.getElementById('btn-skip');
+        var btnInj   = document.getElementById('btn-injured');
+        var btnCant  = document.getElementById('btn-cant');
+        var btnSport = document.getElementById('btn-sport');
+
+        var canSkipAll  = stateData.can_skip  || {};
+        var canCantAll  = stateData.can_cant  || {};
+        var canSportAll = stateData.can_sport || {};
+
+        var canSkip  = (typeof canSkipAll[role]  === 'boolean') ? canSkipAll[role]  : true;
+        var canCant  = (typeof canCantAll[role]  === 'boolean') ? canCantAll[role]  : true;
+        var canSport = (typeof canSportAll[role] === 'boolean') ? canSportAll[role] : true;
+
+        var sportActive = !!myStatus.sport;
+
+        // Sport togglebar; wenn Sport aktiv -> alles andere sperren
+        if (btnSport) {
+            btnSport.disabled = !canSport && !sportActive;
+            btnSport.classList.toggle('active', sportActive);
+        }
+
+        if (btnSkip) {
+            btnSkip.disabled = sportActive || (!canSkip && !myStatus.skip);
+            btnSkip.classList.toggle('active', !!myStatus.skip);
+        }
+        if (btnCant) {
+            btnCant.disabled = sportActive || (!canCant && !myStatus.cant);
+            btnCant.classList.toggle('active', !!myStatus.cant);
+        }
+        if (btnInj) {
+            btnInj.disabled = sportActive;
+            btnInj.classList.toggle('active', !!myStatus.injured);
+        }
+
+        // Übungsbuttons sperren wenn Sport aktiv
+        ['crunches','pushups','squats'].forEach(function(ex){
+            var b = document.getElementById('btn-' + ex);
+            if (b) b.disabled = sportActive;
+        });
+
+        var statusSummary = document.getElementById('statusSummary');
+        if (statusSummary) {
+            var myHuman = buildHumanStatus(myStatus);
+            var otherHuman = buildHumanStatus(otherStatus);
+            statusSummary.textContent = __wc_subst("Du: " + myHuman + " • " + otherName + ": " + otherHuman);
+        }
+
+        if (stateData.cheater) showMessage(stateData.cheater_message || "Cheater-Versuch erkannt. Nice try, aber nein.", "error");
+        else if (stateData.message) showMessage(stateData.message, "info");
+        else showMessage("", "");
+
+        updatePhrase();
+    }
+
+    function loadState() {
+        xhrGet('/api/state?role=' + encodeURIComponent(role), function (err, data) {
+            if (err) { showMessage("Fehler beim Laden des Status: " + err.message, "error"); return; }
+            stateData = data;
+            updateUI();
+        });
+    }
+
+    function sendAction(type, extra) {
+        var body = { role: role, action: type };
+        if (extra) for (var k in extra) if (extra.hasOwnProperty(k)) body[k] = extra[k];
+
+        xhrPost('/api/action', body, function (err, data) {
+            if (err) { showMessage("Aktion fehlgeschlagen: " + err.message, "error"); return; }
+            stateData = data;
+            updateUI();
+        });
+    }
+
+    function getMyStatus() {
+        if (!stateData || !stateData.status) return {};
+        return stateData.status[role] || {};
+    }
+
+    function askCantPassword(callback) {
+        var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr!“ zu bestätigen:");
+        if (pw === null) return;
+        callback(pw);
+    }
+
+    function bindEvents() {
+        var btnCrunch = document.getElementById('btn-crunches');
+        var btnPush  = document.getElementById('btn-pushups');
+        var btnSquat = document.getElementById('btn-squats');
+
+        var btnSkip  = document.getElementById('btn-skip');
+        var btnInj   = document.getElementById('btn-injured');
+        var btnCant  = document.getElementById('btn-cant');
+        var btnSport = document.getElementById('btn-sport');
+
+        var btnNext  = document.getElementById('btn-nextday');
+
+        if (btnCrunch) btnCrunch.onclick = function () {
+            var s = getMyStatus();
+            var isDone = !!s.crunches_done;
+            sendAction(isDone ? 'exercise_undo' : 'exercise', { exercise: 'crunches' });
+        };
+
+        if (btnPush) btnPush.onclick = function () {
+            var s = getMyStatus();
+            var isDone = !!s.pushups_done;
+            sendAction(isDone ? 'exercise_undo' : 'exercise', { exercise: 'pushups' });
+        };
+
+        if (btnSquat) btnSquat.onclick = function () {
+            var s = getMyStatus();
+            var isDone = !!s.squats_done;
+            sendAction(isDone ? 'exercise_undo' : 'exercise', { exercise: 'squats' });
+        };
+
+        if (btnSkip) btnSkip.onclick = function () {
+            var s = getMyStatus();
+            sendAction(s.skip ? 'skip_undo' : 'skip', {});
+        };
+
+        if (btnInj) btnInj.onclick = function () {
+            var s = getMyStatus();
+            sendAction(s.injured ? 'injured_undo' : 'injured', {});
+        };
+
+        if (btnCant) btnCant.onclick = function () {
+            var s = getMyStatus();
+            if (s.cant) sendAction('cant_undo', {});
+            else askCantPassword(function (pw) { sendAction('cant', { password: pw }); });
+        };
+
+        // NEU: Sport toggle
+        if (btnSport) btnSport.onclick = function () {
+            var s = getMyStatus();
+            sendAction(s.sport ? 'sport_undo' : 'sport', {});
+        };
+
+        if (btnNext) btnNext.onclick = function () {
+            if (!window.confirm("Sicher? Nächster Tag kann nicht rückgängig gemacht werden.")) return;
+            xhrPost('/api/nextday', {}, function (err, data) {
+                if (err) { showMessage("Konnte nächsten Tag nicht starten: " + err.message, "error"); return; }
+                stateData = data;
+                updateUI();
+                showMessage("Neuer Tag gestartet.", "success");
+            });
+        };
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        bindEvents();
+        loadState();
+    });
+})();
 </script>
+
 </body>
 </html>
