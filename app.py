@@ -243,21 +243,26 @@ def _build_status(state):
         role_label = INTERNAL_TO_ROLE[internal]
         done = state["done"].get(internal, {})
 
+        # "heute sport gemacht" soll UI-mässig wie "alle Übungen erledigt" wirken
         sport_today = day in state.get("sport", {}).get(internal, [])
 
-        # Wenn "heute sport gemacht" aktiv ist, soll es UI-mässig wie "alle Übungen erledigt" wirken
         status[role_label] = {
+            # crunches in UI corresponds to internal "situps" in state
             "crunches_done": True if sport_today else bool(done.get("situps", False)),
-            "pushups_done": True if sport_today else bool(done.get("pushups", False)),
-            "squats_done": True if sport_today else bool(done.get("squats", False)),
-            "skip": day in state["skip"].get(internal, []),
-            "injured": day in state["injured"].get(internal, []),
-            "cant": day in state["cant"].get(internal, []),
-            "sport": bool(sport_today),
+            "pushups_done":  True if sport_today else bool(done.get("pushups", False)),
+            "squats_done":   True if sport_today else bool(done.get("squats", False)),
+
+            # per-exercise cant flags (today)
+            "cant_crunches": _is_cant_exercise_today(state, internal, "situps"),
+            "cant_pushups":  _is_cant_exercise_today(state, internal, "pushups"),
+            "cant_squats":   _is_cant_exercise_today(state, internal, "squats"),
+
+            "skip":    day in state.get("skip", {}).get(internal, []),
+            "injured": day in state.get("injured", {}).get(internal, []),
+            "cant":    day in state.get("cant", {}).get(internal, []),
+            "sport":   bool(sport_today),
         }
     return status
-
-
 def _build_can_flags(state):
     """Berechnet, ob skip/cant/sport laut Regeln erlaubt wäre."""
     day = state["day"]
@@ -556,6 +561,71 @@ def _apply_cant_undo(state, internal_person: str):
     return state, "ok"
 
 
+
+
+def _is_cant_exercise_today(state, internal_person: str, internal_exercise: str) -> bool:
+    day = state["day"]
+    return day in state.get("cant_ex", {}).get(internal_person, {}).get(internal_exercise, [])
+
+
+def _apply_cant_exercise(state, internal_person: str, internal_exercise: str, password: str):
+    """
+    Per-exercise "Ich kann nicht mehr":
+    - passwortgeschützt (reset)
+    - reduziert NUR diese Übung um CANT_REDUCTION (min. 1)
+    - togglebar via cant_exercise_undo
+    - zählt als eigener "Cant" im Total-Counter (cant_ex_count)
+    """
+    if password != CANT_PASSWORD:
+        return state, "wrong_password"
+
+    day = state["day"]
+    # reuse global cant cheat window for per-exercise as well
+    last_cant_day = None
+    cant_days = state.get("cant", {}).get(internal_person, [])
+    if cant_days:
+        last_cant_day = max(cant_days)
+
+    if last_cant_day is not None and (day - last_cant_day) < CANT_MIN_DAYS:
+        cheater_days = state["cheater"].setdefault(internal_person, [])
+        if day not in cheater_days:
+            cheater_days.append(day)
+        return state, "cheater_cant"
+
+    ex_map = state.setdefault("cant_ex", {}).setdefault(internal_person, {}).setdefault(internal_exercise, [])
+    if day in ex_map:
+        return state, "already"
+
+    ex_map.append(day)
+    state["cant_ex"][internal_person][internal_exercise] = ex_map
+
+    # count each per-ex activation
+    cnt = state.setdefault("cant_ex_count", {}).setdefault(internal_person, 0)
+    state["cant_ex_count"][internal_person] = int(cnt) + 1
+
+    current_reps = state["reps"][internal_person].get(internal_exercise, START_REPS)
+    state["reps"][internal_person][internal_exercise] = max(1, current_reps - CANT_REDUCTION)
+
+    return state, "ok"
+
+
+def _apply_cant_exercise_undo(state, internal_person: str, internal_exercise: str):
+    day = state["day"]
+    ex_days = state.get("cant_ex", {}).get(internal_person, {}).get(internal_exercise, [])
+    if day not in ex_days:
+        return state, "noop"
+
+    state["cant_ex"][internal_person][internal_exercise] = [d for d in ex_days if d != day]
+
+    # decrement counter
+    cnt = int(state.get("cant_ex_count", {}).get(internal_person, 0))
+    state.setdefault("cant_ex_count", {})[internal_person] = max(0, cnt - 1)
+
+    # restore reps for this exercise
+    current_reps = state["reps"][internal_person].get(internal_exercise, START_REPS)
+    state["reps"][internal_person][internal_exercise] = current_reps + CANT_REDUCTION
+
+    return state, "ok"
 def _apply_sport(state, internal_person: str):
     """
     "Heute Sport gemacht" (pro Person, togglebar):
@@ -714,6 +784,36 @@ def api_action():
                 message = "„Ich kann nicht mehr!“-Status zurückgenommen."
             else:
                 message = "Für heute war kein „Ich kann nicht mehr!“-Status gesetzt."
+
+
+        elif action == "cant_exercise":
+            exercise_external = data.get("exercise")
+            if exercise_external not in EXTERNAL_TO_INTERNAL_EXERCISE:
+                return jsonify({"error": "Ungültige Übung"}), 400
+            internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
+            password = data.get("password", "")
+            state, status = _apply_cant_exercise(state, internal_person, internal_ex, password)
+            if status == "wrong_password":
+                state = load_state()
+                resp = _build_client_state(state, role_view, "Falsches Passwort für „Ich kann nicht mehr!“ (Übung).")
+                return jsonify(resp), 403
+            elif status == "cheater_cant":
+                message = "„Ich kann nicht mehr!“ zu früh – Cheater erkannt."
+            elif status == "already":
+                message = f"„Ich kann nicht mehr!“ für {exercise_external} ist heute bereits gesetzt."
+            else:
+                message = f"Reps reduziert für {exercise_external}. Du lebst noch."
+
+        elif action == "cant_exercise_undo":
+            exercise_external = data.get("exercise")
+            if exercise_external not in EXTERNAL_TO_INTERNAL_EXERCISE:
+                return jsonify({"error": "Ungültige Übung"}), 400
+            internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
+            state, status = _apply_cant_exercise_undo(state, internal_person, internal_ex)
+            if status == "ok":
+                message = f"„Ich kann nicht mehr!“ für {exercise_external} zurückgenommen."
+            else:
+                message = f"Für {exercise_external} war heute kein „Ich kann nicht mehr!“ gesetzt."
 
         # NEW: heute sport gemacht (togglebar)
         elif action == "sport":

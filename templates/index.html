@@ -438,7 +438,11 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-                <div class="exercise-other-status" id="other-crunches-status"></div>
+                <button class="exercise-action-btn cant-ex" id="btn-cant-crunches" type="button">
+                  <span class="icon">🤬</span>
+                  <span class="label">Ich kann nicht mehr (−10)</span>
+                </button>
+<div class="exercise-other-status" id="other-crunches-status"></div>
             </div>
 
             <div class="exercise-card" id="card-pushups">
@@ -450,7 +454,11 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-                <div class="exercise-other-status" id="other-pushups-status"></div>
+                <button class="exercise-action-btn cant-ex" id="btn-cant-pushups" type="button">
+                  <span class="icon">🤬</span>
+                  <span class="label">Ich kann nicht mehr (−10)</span>
+                </button>
+<div class="exercise-other-status" id="other-pushups-status"></div>
             </div>
 
             <div class="exercise-card" id="card-squats">
@@ -462,7 +470,11 @@
                     <span class="icon">✅</span>
                     <span class="label">erledigt</span>
                 </button>
-                <div class="exercise-other-status" id="other-squats-status"></div>
+                <button class="exercise-action-btn cant-ex" id="btn-cant-squats" type="button">
+                  <span class="icon">🤬</span>
+                  <span class="label">Ich kann nicht mehr (−10)</span>
+                </button>
+<div class="exercise-other-status" id="other-squats-status"></div>
             </div>
         </div>
 
@@ -480,10 +492,6 @@
             <button class="status-btn skip" id="btn-skip" type="button">
                 <span class="icon">😴</span>
                 <span>Skip</span>
-            </button>
-            <button class="status-btn cant" id="btn-cant" type="button">
-                <span class="icon">🥵</span>
-                <span>Ich kann nicht mehr!</span>
             </button>
         </div>
 
@@ -729,6 +737,16 @@
         updateExerciseButton('pushups', !!myStatus.pushups_done);
         updateExerciseButton('squats',  !!myStatus.squats_done);
 
+        function updateCantExButton(exId, active) {
+            var btn = document.getElementById('btn-cant-' + exId);
+            if (!btn) return;
+            btn.classList.toggle('active', !!active);
+        }
+
+        updateCantExButton('crunches', !!myStatus.cant_crunches);
+        updateCantExButton('pushups',  !!myStatus.cant_pushups);
+        updateCantExButton('squats',   !!myStatus.cant_squats);
+
         var otherCrunchEl = document.getElementById('other-crunches-status');
         var otherPushEl   = document.getElementById('other-pushups-status');
         var otherSquatEl  = document.getElementById('other-squats-status');
@@ -739,7 +757,6 @@
 
         var btnSkip  = document.getElementById('btn-skip');
         var btnInj   = document.getElementById('btn-injured');
-        var btnCant  = document.getElementById('btn-cant');
         var btnSport = document.getElementById('btn-sport');
 
         var canSkipAll  = stateData.can_skip  || {};
@@ -762,11 +779,7 @@
             btnSkip.disabled = sportActive || (!canSkip && !myStatus.skip);
             btnSkip.classList.toggle('active', !!myStatus.skip);
         }
-        if (btnCant) {
-            btnCant.disabled = sportActive || (!canCant && !myStatus.cant);
-            btnCant.classList.toggle('active', !!myStatus.cant);
-        }
-        if (btnInj) {
+if (btnInj) {
             btnInj.disabled = sportActive;
             btnInj.classList.toggle('active', !!myStatus.injured);
         }
@@ -777,7 +790,14 @@
             if (b) b.disabled = sportActive;
         });
 
-        var statusSummary = document.getElementById('statusSummary');
+        
+
+        // cant-ex buttons sperren wenn Sport aktiv
+        ['crunches','pushups','squats'].forEach(function(ex){
+            var b = document.getElementById('btn-cant-' + ex);
+            if (b) b.disabled = sportActive;
+        });
+var statusSummary = document.getElementById('statusSummary');
         if (statusSummary) {
             var myHuman = buildHumanStatus(myStatus);
             var otherHuman = buildHumanStatus(otherStatus);
@@ -826,9 +846,12 @@
         var btnPush  = document.getElementById('btn-pushups');
         var btnSquat = document.getElementById('btn-squats');
 
+
+        var btnCantCrunch = document.getElementById('btn-cant-crunches');
+        var btnCantPush   = document.getElementById('btn-cant-pushups');
+        var btnCantSquat  = document.getElementById('btn-cant-squats');
         var btnSkip  = document.getElementById('btn-skip');
         var btnInj   = document.getElementById('btn-injured');
-        var btnCant  = document.getElementById('btn-cant');
         var btnSport = document.getElementById('btn-sport');
 
         var btnNext  = document.getElementById('btn-nextday');
@@ -851,7 +874,28 @@
             sendAction(isDone ? 'exercise_undo' : 'exercise', { exercise: 'squats' });
         };
 
-        if (btnSkip) btnSkip.onclick = function () {
+        
+
+        // Per-exercise cant (toggle, password on enable)
+        function bindCantEx(btn, exKey, statusKey) {
+            if (!btn) return;
+            btn.onclick = function () {
+                var st = getMyStatus();
+                var active = !!st[statusKey];
+                if (active) {
+                    sendAction('cant_exercise_undo', { exercise: exKey });
+                } else {
+                    askCantPassword(function (pw) {
+                        sendAction('cant_exercise', { exercise: exKey, password: pw });
+                    });
+                }
+            };
+        }
+
+        bindCantEx(btnCantCrunch, 'crunches', 'cant_crunches');
+        bindCantEx(btnCantPush,   'pushups',  'cant_pushups');
+        bindCantEx(btnCantSquat,  'squats',   'cant_squats');
+if (btnSkip) btnSkip.onclick = function () {
             var s = getMyStatus();
             sendAction(s.skip ? 'skip_undo' : 'skip', {});
         };
@@ -861,13 +905,7 @@
             sendAction(s.injured ? 'injured_undo' : 'injured', {});
         };
 
-        if (btnCant) btnCant.onclick = function () {
-            var s = getMyStatus();
-            if (s.cant) sendAction('cant_undo', {});
-            else askCantPassword(function (pw) { sendAction('cant', { password: pw }); });
-        };
-
-        // NEU: Sport toggle
+// NEU: Sport toggle
         if (btnSport) btnSport.onclick = function () {
             var s = getMyStatus();
             sendAction(s.sport ? 'sport_undo' : 'sport', {});
