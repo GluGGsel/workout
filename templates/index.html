@@ -565,7 +565,9 @@
         xhr.send(JSON.stringify(body));
     }
 
-    function showMessage(text, type) {
+    function hardLock(text){ showMessage(text || 'Aktion nicht erlaubt.', 'error'); }
+
+      function showMessage(text, type) {
         var box = document.getElementById('messageBox');
         if (!text) {
             box.style.display = 'none';
@@ -760,12 +762,17 @@
         var btnSport = document.getElementById('btn-sport');
 
         var canSkipAll  = stateData.can_skip  || {};
+        var canCantExAll = stateData.can_cant_ex || {};
+
         var canCantAll  = stateData.can_cant  || {};
         var canSportAll = stateData.can_sport || {};
 
         var canSkip  = (typeof canSkipAll[role]  === 'boolean') ? canSkipAll[role]  : true;
         var canCant  = (typeof canCantAll[role]  === 'boolean') ? canCantAll[role]  : true;
         var canSport = (typeof canSportAll[role] === 'boolean') ? canSportAll[role] : true;
+
+        var canCantEx = canCantExAll[role] || {};
+
 
         var sportActive = !!myStatus.sport;
 
@@ -789,6 +796,22 @@ if (btnInj) {
             var b = document.getElementById('btn-' + ex);
             if (b) b.disabled = sportActive;
         });
+        // Per-exercise cant buttons (disable on cooldown, but allow undo if active)
+        [
+          ['crunches','cant_crunches'],
+          ['pushups','cant_pushups'],
+          ['squats','cant_squats']
+        ].forEach(function(pair){
+            var exKey = pair[0];
+            var stKey = pair[1];
+            var b = document.getElementById('btn-cant-' + exKey);
+            if (!b) return;
+            var active = !!myStatus[stKey];
+            var canUse = (typeof canCantEx[exKey] === 'boolean') ? canCantEx[exKey] : true;
+            b.disabled = sportActive || (!canUse && !active);
+            b.classList.toggle('active', active);
+        });
+
 
         
 
@@ -922,7 +945,9 @@ if (btnSkip) btnSkip.onclick = function () {
         };
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    window.hardLock = hardLock;
+
+      document.addEventListener('DOMContentLoaded', function () {
         bindEvents();
         loadState();
     });

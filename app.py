@@ -263,6 +263,30 @@ def _build_status(state):
             "sport":   bool(sport_today),
         }
     return status
+
+def _last_cant_ex_day(state, internal_person: str, internal_exercise: str):
+    """
+    Returns the most recent day number when per-exercise 'cant' was used for the given
+    person+exercise. If no entry exists, returns None.
+
+    Expected state shape (tolerant):
+      state["cant_exercise"][internal_person][internal_exercise] = [day, day, ...]
+    """
+    ce = state.get("cant_exercise", {}) or {}
+    per_person = ce.get(internal_person, {}) or {}
+    days = per_person.get(internal_exercise, []) or []
+    if not days:
+        return None
+    try:
+        return max(int(d) for d in days)
+    except Exception:
+        # be tolerant if legacy/non-int values exist
+        try:
+            return max(days)
+        except Exception:
+            return None
+
+
 def _build_can_flags(state):
     """Berechnet, ob skip/cant/sport laut Regeln erlaubt wäre."""
     day = state["day"]
@@ -304,7 +328,19 @@ def _build_can_flags(state):
         can_cant[role_label] = allow_cant
         can_sport[role_label] = allow_sport
 
-    return can_skip, can_cant, can_sport
+    # per-exercise cant availability (cooldown per exercise)
+    can_cant_ex = {}
+    for internal in ["male", "female"]:
+        role_label = INTERNAL_TO_ROLE[internal]
+        can_map = {}
+        # UI exercises -> internal keys
+        pairs = [("crunches","situps"), ("pushups","pushups"), ("squats","squats")]
+        for ui_ex, internal_ex in pairs:
+            last_day = _last_cant_ex_day(state, internal, internal_ex)
+            can_map[ui_ex] = True if (last_day is None) else ((day - last_day) >= CANT_MIN_DAYS)
+        can_cant_ex[role_label] = can_map
+
+    return can_skip, can_cant, can_sport, can_cant_ex
 
 
 def _build_phrase_category(state, role_view: str) -> str:
@@ -396,7 +432,7 @@ def _build_client_state(state, role_view: str, message: str | None = None):
     totals = _build_totals(state)
     reps_today = _build_reps_today(state)
     status = _build_status(state)
-    can_skip, can_cant, can_sport = _build_can_flags(state)
+    can_skip, can_cant, can_sport, can_cant_ex = _build_can_flags(state)
     phrase_category = _build_phrase_category(state, role_view)
 
     # Cheater-Flag nur für die aktive Rolle
@@ -415,6 +451,7 @@ def _build_client_state(state, role_view: str, message: str | None = None):
         "status": status,
         "can_skip": can_skip,
         "can_cant": can_cant,
+        "can_cant_ex": can_cant_ex,
         "can_sport": can_sport,
         "phrase_category": phrase_category,
         "cheater": bool(cheater_today),
@@ -611,55 +648,33 @@ def _apply_cant_exercise(state, internal_person: str, internal_exercise: str, pa
 
 def _apply_cant_exercise_undo(state, internal_person: str, internal_exercise: str):
     day = state["day"]
-    ex_days = state.get("cant_ex", {}).get(internal_person, {}).get(internal_exercise, [])
-    if day not in ex_days:
+
+    ex_map = state.get("cant_ex", {}).get(internal_person, {})
+    days = ex_map.get(internal_exercise, [])
+    if day not in days:
         return state, "noop"
 
-    state["cant_ex"][internal_person][internal_exercise] = [d for d in ex_days if d != day]
+    # remove day for this exercise
+    ex_map[internal_exercise] = [d for d in days if d != day]
+    state.setdefault("cant_ex", {})[internal_person] = ex_map
 
-    # decrement counter
-    cnt = int(state.get("cant_ex_count", {}).get(internal_person, 0))
-    state.setdefault("cant_ex_count", {})[internal_person] = max(0, cnt - 1)
-
-    # restore reps for this exercise
+    # revert reps only for this exercise
     current_reps = state["reps"][internal_person].get(internal_exercise, START_REPS)
     state["reps"][internal_person][internal_exercise] = current_reps + CANT_REDUCTION
 
-    return state, "ok"
-def _apply_sport(state, internal_person: str):
-    """
-    "Heute Sport gemacht" (pro Person, togglebar):
-    - schliesst den Tag für diese Person bzgl. Nextday + Sprüche
-    - KEINE Overall-Reps addieren
-    - KEINE Reps verändern (morgen +1 passiert wie üblich beim Nextday)
-    """
-    day = state["day"]
+    # if no other cant_ex active today for this person, also remove from global cant_days
+    still_active_today = False
+    for ex, ex_days in ex_map.items():
+        if day in (ex_days or []):
+            still_active_today = True
+            break
 
-    # wenn schon in einem anderen Status "geschlossen" (skip/injured/cant/done_all) -> nicht zulassen
-    if is_day_closed_for_person(state, internal_person):
-        # falls es NUR wegen sport geschlossen ist, ist das ok, das behandelt undo.
-        if is_sport_done_today(state, internal_person):
-            return state, "already"
-        return state, "not_allowed"
-
-    sport_days = state.setdefault("sport", {}).setdefault(internal_person, [])
-    if day not in sport_days:
-        sport_days.append(day)
-        state["sport"][internal_person] = sport_days
+    if not still_active_today:
+        cant_days = state.get("cant", {}).get(internal_person, [])
+        if cant_days:
+            state["cant"][internal_person] = [d for d in cant_days if d != day]
 
     return state, "ok"
-
-
-def _apply_sport_undo(state, internal_person: str):
-    day = state["day"]
-    sport_days = state.get("sport", {}).get(internal_person, [])
-    if day not in sport_days:
-        return state, "noop"
-
-    state["sport"][internal_person] = [d for d in sport_days if d != day]
-    return state, "ok"
-
-
 @app.route("/")
 def index():
     view_raw = (request.args.get("view") or "").lower()
