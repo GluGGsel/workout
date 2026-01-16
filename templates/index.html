@@ -195,6 +195,16 @@
             color: #bbf7d0;
         }
 
+        .exercise-action-btn.cant-ex {
+            background: rgba(59, 130, 246, 0.18);
+            color: #bfdbfe;
+        }
+
+        .exercise-action-btn.cant-ex.active {
+            background: rgba(0, 0, 0, 0.06);
+            border-color: rgba(0, 0, 0, 0.25);
+}
+
         .exercise-action-btn.done {
             background: rgba(22, 163, 74, 0.35);
             color: #ecfdf5;
@@ -565,7 +575,9 @@
         xhr.send(JSON.stringify(body));
     }
 
-    function showMessage(text, type) {
+    function hardLock(text){ showMessage(text || 'Aktion nicht erlaubt.', 'error'); }
+
+      function showMessage(text, type) {
         var box = document.getElementById('messageBox');
         if (!text) {
             box.style.display = 'none';
@@ -760,12 +772,17 @@
         var btnSport = document.getElementById('btn-sport');
 
         var canSkipAll  = stateData.can_skip  || {};
+        var canCantExAll = stateData.can_cant_ex || {};
+
         var canCantAll  = stateData.can_cant  || {};
         var canSportAll = stateData.can_sport || {};
 
         var canSkip  = (typeof canSkipAll[role]  === 'boolean') ? canSkipAll[role]  : true;
         var canCant  = (typeof canCantAll[role]  === 'boolean') ? canCantAll[role]  : true;
         var canSport = (typeof canSportAll[role] === 'boolean') ? canSportAll[role] : true;
+
+        var canCantEx = canCantExAll[role] || {};
+
 
         var sportActive = !!myStatus.sport;
 
@@ -790,25 +807,28 @@ if (btnInj) {
             if (b) b.disabled = sportActive;
         });
 
-        
+        // per-exercise cant buttons: active + cooldown gating
+        ['crunches','pushups','squats'].forEach(function(exKey) {
+            var b = document.getElementById('btn-cant-' + exKey);
+            if (!b) return;
 
-        // cant-ex buttons sperren wenn Sport aktiv
-        ['crunches','pushups','squats'].forEach(function(ex){
-            var b = document.getElementById('btn-cant-' + ex);
-            if (b) b.disabled = sportActive;
+            var active = !!myStatus['cant_' + exKey];
+            var canMap = (stateData && stateData.can_cant_ex && stateData.can_cant_ex[role]) ? stateData.can_cant_ex[role] : null;
+            var canUse = (canMap && typeof canMap[exKey] === 'boolean') ? canMap[exKey] : true;
+
+            b.disabled = sportActive || (!canUse && !active);
+            b.classList.toggle('active', active);
         });
+
 var statusSummary = document.getElementById('statusSummary');
         if (statusSummary) {
             var myHuman = buildHumanStatus(myStatus);
             var otherHuman = buildHumanStatus(otherStatus);
             statusSummary.textContent = __wc_subst("Du: " + myHuman + " • " + otherName + ": " + otherHuman);
         }
-
-        if (stateData.cheater) showMessage(stateData.cheater_message || "Cheater-Versuch erkannt. Nice try, aber nein.", "error");
-        else if (stateData.message) showMessage(stateData.message, "info");
+        if (stateData.message) showMessage(stateData.message, "info");
         else showMessage("", "");
-
-        updatePhrase();
+updatePhrase();
     }
 
     function loadState() {
@@ -833,12 +853,6 @@ var statusSummary = document.getElementById('statusSummary');
     function getMyStatus() {
         if (!stateData || !stateData.status) return {};
         return stateData.status[role] || {};
-    }
-
-    function askCantPassword(callback) {
-        var pw = window.prompt("Passwort eingeben, um „Ich kann nicht mehr!“ zu bestätigen:");
-        if (pw === null) return;
-        callback(pw);
     }
 
     function bindEvents() {
@@ -879,17 +893,23 @@ var statusSummary = document.getElementById('statusSummary');
         // Per-exercise cant (toggle, password on enable)
         function bindCantEx(btn, exKey, statusKey) {
             if (!btn) return;
-            btn.onclick = function () {
-                var st = getMyStatus();
-                var active = !!st[statusKey];
-                if (active) {
-                    sendAction('cant_exercise_undo', { exercise: exKey });
-                } else {
-                    askCantPassword(function (pw) {
-                        sendAction('cant_exercise', { exercise: exKey, password: pw });
-                    });
+
+            btn.addEventListener('click', function () {
+                // if already active -> undo (always allowed)
+                var isActive = btn.classList.contains('active');
+                var action = isActive ? 'cant_exercise_undo' : 'cant_exercise';
+
+                // if trying to set and server says cooldown false, block client-side
+                if (!isActive) {
+                    var canMap = (stateData && stateData.can_cant_ex && stateData.can_cant_ex[role]) || null;
+                    if (canMap && canMap[exKey] === false) {
+                        // soft block; server will also enforce
+                        return;
+                    }
                 }
-            };
+
+                sendAction(action, { exercise: exKey });
+            });
         }
 
         bindCantEx(btnCantCrunch, 'crunches', 'cant_crunches');
@@ -922,7 +942,9 @@ if (btnSkip) btnSkip.onclick = function () {
         };
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    window.hardLock = hardLock;
+
+      document.addEventListener('DOMContentLoaded', function () {
         bindEvents();
         loadState();
     });
