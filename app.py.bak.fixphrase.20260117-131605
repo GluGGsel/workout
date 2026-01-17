@@ -18,38 +18,64 @@ EXERCISES = ["squats", "situps", "pushups"]  # "situps" wird in der UI als "Crun
 
 SKIP_MIN_DAYS = 7          # Skip höchstens alle 7 Tage
 SPORT_MIN_DAYS = 1         # "Sport" Button: am nächsten Tag wieder möglich
-CANT_MIN_DAYS = 10         # per-exercise "Ich kann nicht mehr!" höchstens alle 10 Tage pro Übung
-CANT_REDUCTION = 10        # Reps -10 bei "Ich kann nicht mehr!"
-START_REPS = 15            # Startwiederholungen
-
+CANT_MIN_DAYS = 10         # "Ich kann nicht mehr!" höchstens alle 10 Tage
 # --- cant-ex per-exercise mapping (UI <-> internal state keys) ---
 EX_UI_TO_INTERNAL = {"crunches": "situps", "pushups": "pushups", "squats": "squats"}
 EX_INTERNAL_TO_UI = {"situps": "crunches", "pushups": "pushups", "squats": "squats"}
 
-
 def _ex_to_internal(ex: str) -> str:
     return EX_UI_TO_INTERNAL.get(ex, ex)
 
+def _last_cant_ex_day(state, internal_person: str, internal_exercise: str):
+    cant_ex = state.get("cant_ex", {}).get(internal_person, {})
+    days = cant_ex.get(internal_exercise, []) or []
+    return max(days) if days else None
+
+CANT_REDUCTION = 10        # Reps -10 bei "Ich kann nicht mehr!"
+START_REPS = 15            # Startwiederholungen
+CANT_PASSWORD = os.getenv("WORKOUT_CANT_PASSWORD", "reset")
 
 # Mapping zwischen Frontend-Rollen und internem State
-ROLE_TO_INTERNAL = {"mann": "male", "frau": "female"}
-INTERNAL_TO_ROLE = {"male": "mann", "female": "frau"}
+ROLE_TO_INTERNAL = {
+    "mann": "male",
+    "frau": "female",
+}
+INTERNAL_TO_ROLE = {
+    "male": "mann",
+    "female": "frau",
+}
 
 # Mapping zwischen Frontend-Übungsnamen und internem State
-EXTERNAL_TO_INTERNAL_EXERCISE = {"crunches": "situps", "pushups": "pushups", "squats": "squats"}
+EXTERNAL_TO_INTERNAL_EXERCISE = {
+    "crunches": "situps",
+    "pushups": "pushups",
+    "squats": "squats",
+}
 INTERNAL_TO_EXTERNAL_EXERCISE = {v: k for k, v in EXTERNAL_TO_INTERNAL_EXERCISE.items()}
 
 MONTH_NAMES_DE = [
-    "Januar", "Februar", "März", "April", "Mai", "Juni",
-    "Juli", "August", "September", "Oktober", "November", "Dezember",
+    "Januar",
+    "Februar",
+    "März",
+    "April",
+    "Mai",
+    "Juni",
+    "Juli",
+    "August",
+    "September",
+    "Oktober",
+    "November",
+    "Dezember",
 ]
 
 
 def _today() -> date:
+    """Aktuelles Datum (ohne Uhrzeit) als date-Objekt."""
     return date.today()
 
 
 def format_date_swiss_long(d: date) -> str:
+    """z.B. 12. Dezember 2025"""
     return f"{d.day}. {MONTH_NAMES_DE[d.month - 1]} {d.year}"
 
 
@@ -74,21 +100,15 @@ def load_state():
             },
             "skip": {"male": [], "female": []},
             "injured": {"male": [], "female": []},
-            # legacy/global cant bleibt als Feld für Kompatibilität, wird aber nicht mehr gesetzt
             "cant": {"male": [], "female": []},
+            # NEW: "heute sport gemacht" (pro Person / pro Tag)
             "sport": {"male": [], "female": []},
-            # canonical per-exercise cant
-            "cant_ex": {"male": {}, "female": {}},
-            # sticky phrase trigger for cant_ex
-            "cant_phrase": {},
         }
         save_state(state)
         return state
 
     with open(STATE_FILE, "r", encoding="utf-8") as f:
         state = json.load(f)
-
-    changed = False
 
     # Backwards-Kompatibilität: fehlende Felder ergänzen
     if "start_date" not in state:
@@ -98,37 +118,41 @@ def load_state():
             d = 1
         start = _today() - timedelta(days=max(d - 1, 0))
         state["start_date"] = start.isoformat()
-        changed = True
 
     if "reps" not in state:
-        state["reps"] = {"male": {ex: START_REPS for ex in EXERCISES}, "female": {ex: START_REPS for ex in EXERCISES}}
-        changed = True
-    if "done" not in state:
-        state["done"] = {"male": {ex: False for ex in EXERCISES}, "female": {ex: False for ex in EXERCISES}}
-        changed = True
-    if "overall" not in state:
-        state["overall"] = {"male": {ex: 0 for ex in EXERCISES}, "female": {ex: 0 for ex in EXERCISES}}
-        changed = True
+        state["reps"] = {
+            "male": {ex: START_REPS for ex in EXERCISES},
+            "female": {ex: START_REPS for ex in EXERCISES},
+        }
 
-    for key in ["skip", "injured", "cant", "sport"]:
-        if key not in state or not isinstance(state.get(key), dict):
+    if "done" not in state:
+        state["done"] = {
+            "male": {ex: False for ex in EXERCISES},
+            "female": {ex: False for ex in EXERCISES},
+        }
+
+    if "overall" not in state:
+        state["overall"] = {
+            "male": {ex: 0 for ex in EXERCISES},
+            "female": {ex: 0 for ex in EXERCISES},
+        }
+
+    for key in ["skip", "injured", "cant", "sport", "cant_ex"]:
+        if key not in state:
             state[key] = {"male": [], "female": []}
-            changed = True
         else:
             for person in ["male", "female"]:
                 state[key].setdefault(person, [])
 
-    # cant_ex canonical
+
+    # --- per-exercise cant: canonical key is "cant_ex"
+    changed = locals().get("changed", False)
+
     if "cant_ex" not in state or not isinstance(state.get("cant_ex"), dict):
         state["cant_ex"] = {"male": {}, "female": {}}
         changed = True
     for person in ["male", "female"]:
         state["cant_ex"].setdefault(person, {})
-
-    # sticky cant phrase meta
-    if "cant_phrase" not in state or not isinstance(state.get("cant_phrase"), dict):
-        state["cant_phrase"] = {}
-        changed = True
 
     # Migration: legacy "cant_exercise" -> "cant_ex" (merge, unique ints, sort), then drop legacy
     legacy = state.get("cant_exercise")
@@ -158,7 +182,6 @@ def load_state():
                 changed = True
         state.pop("cant_exercise", None)
         changed = True
-
     # fehlende Exercises ergänzen
     for person in ["male", "female"]:
         state["reps"].setdefault(person, {})
@@ -193,7 +216,15 @@ def calculate_current_date(state):
 
     day_index = max(int(state.get("day", 1)), 1) - 1
     current = start + timedelta(days=day_index)
-    weekday_names = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
+    weekday_names = [
+        "Montag",
+        "Dienstag",
+        "Mittwoch",
+        "Donnerstag",
+        "Freitag",
+        "Samstag",
+        "Sonntag",
+    ]
     weekday = weekday_names[current.weekday()]
     return current, weekday
 
@@ -209,8 +240,7 @@ def is_day_closed_for_person(state, person_internal: str) -> bool:
     done_all = all(state["done"][person_internal].get(ex, False) for ex in EXERCISES)
     skipped = day in state["skip"].get(person_internal, [])
     injured = day in state["injured"].get(person_internal, [])
-    # legacy global cant (wird nicht mehr gesetzt, aber bleibt als Feld)
-    cant = day in state.get("cant", {}).get(person_internal, [])
+    cant = day in state["cant"].get(person_internal, [])
     sport = is_sport_done_today(state, person_internal)
     return done_all or skipped or injured or cant or sport
 
@@ -223,12 +253,19 @@ def _normalize_role(role_raw: str) -> str:
 
 
 def _build_totals(state):
+    """Aggregierte Totals für Frontend aufbereiten."""
     totals = {}
     for internal in ["male", "female"]:
+
+        # cant_ex today detection (any exercise)
+        has_cant_ex_today = any(
+            day in state.get("cant_ex", {}).get(internal, {}).get(ex, [])
+            for ex in EXERCISES
+        )
         role_label = INTERNAL_TO_ROLE[internal]
         overall = state["overall"].get(internal, {})
         skip_days = len(state["skip"].get(internal, []))
-        cant_days = len(state.get("cant", {}).get(internal, []))  # legacy/global
+        cant_days = len(state["cant"].get(internal, []))
         injured_days = len(state["injured"].get(internal, []))
         sport_days = len(state.get("sport", {}).get(internal, []))
 
@@ -257,31 +294,6 @@ def _build_reps_today(state):
     return reps_today
 
 
-def _last_cant_ex_day(state, internal_person: str, internal_exercise: str):
-    ce = state.get("cant_ex", {}) or {}
-    per_person = ce.get(internal_person, {}) or {}
-    days = per_person.get(internal_exercise, []) or []
-    if not days:
-        return None
-    try:
-        return max(int(d) for d in days)
-    except Exception:
-        try:
-            return max(days)
-        except Exception:
-            return None
-
-
-def _has_cant_ex_today(state, internal_person: str) -> bool:
-    day = state["day"]
-    ce = state.get("cant_ex", {}).get(internal_person, {}) or {}
-    for ex in EXERCISES:
-        days = ce.get(ex, []) or []
-        if day in days:
-            return True
-    return False
-
-
 def _build_status(state):
     day = state["day"]
     status = {}
@@ -289,138 +301,267 @@ def _build_status(state):
         role_label = INTERNAL_TO_ROLE[internal]
         done = state["done"].get(internal, {})
 
+        # "heute sport gemacht" soll UI-mässig wie "alle Übungen erledigt" wirken
         sport_today = day in state.get("sport", {}).get(internal, [])
 
         status[role_label] = {
+            # crunches in UI corresponds to internal "situps" in state
             "crunches_done": True if sport_today else bool(done.get("situps", False)),
             "pushups_done":  True if sport_today else bool(done.get("pushups", False)),
             "squats_done":   True if sport_today else bool(done.get("squats", False)),
 
+            # per-exercise cant flags (today)
             "cant_crunches": _is_cant_exercise_today(state, internal, "situps"),
             "cant_pushups":  _is_cant_exercise_today(state, internal, "pushups"),
             "cant_squats":   _is_cant_exercise_today(state, internal, "squats"),
 
             "skip":    day in state.get("skip", {}).get(internal, []),
             "injured": day in state.get("injured", {}).get(internal, []),
-            # legacy/global cant (nicht mehr gesetzt)
             "cant":    day in state.get("cant", {}).get(internal, []),
             "sport":   bool(sport_today),
         }
     return status
 
 
+
+def _last_cant_ex_day(state, internal_person: str, internal_exercise: str):
+    """
+    Most recent day number when per-exercise cant was used for person+exercise.
+    Canonical key: state["cant_ex"][person][exercise] = [day,...]
+    Legacy fallback: state["cant_exercise"][person][exercise] = [day,...]
+    """
+    for key in ("cant_ex", "cant_exercise"):
+        ce = state.get(key, {}) or {}
+        per_person = ce.get(internal_person, {}) or {}
+        days = per_person.get(internal_exercise, []) or []
+        if days:
+            try:
+                return max(int(d) for d in days)
+            except Exception:
+                try:
+                    return max(days)
+                except Exception:
+                    return None
+    return None
+
+
+
+
 def _build_can_flags(state):
-    """Berechnet, ob skip/sport/cant_ex laut Regeln erlaubt wäre."""
+
+
+
+
+    """Berechnet, ob skip/cant/sport/cant_ex laut Regeln erlaubt wäre."""
+
+
+
+
     day = state["day"]
+
+
+
+
     can_skip = {}
+
+
+
+
+    can_cant = {}
+
+
+
+
     can_sport = {}
+
+
+
+
     can_cant_ex = {}
 
+
+
+
+
     for internal in ["male", "female"]:
+
+
+
+
         role_label = INTERNAL_TO_ROLE[internal]
 
+
+
+
+
+        # global flags (unverändert)
+
+
+
+
         skip_days = state.get("skip", {}).get(internal, [])
+
+
+
+
         last_skip = max(skip_days) if skip_days else None
+
+
+
+
         can_skip[role_label] = True if last_skip is None else (day - last_skip) >= SKIP_MIN_DAYS
 
+
+
+
+
+        cant_days = state.get("cant", {}).get(internal, [])
+
+
+
+
+        last_cant = max(cant_days) if cant_days else None
+
+
+
+
+        can_cant[role_label] = True if last_cant is None else (day - last_cant) >= CANT_MIN_DAYS
+
+
+
+
+
         sport_days = state.get("sport", {}).get(internal, [])
+
+
+
+
         last_sport = max(sport_days) if sport_days else None
+
+
+
+
         can_sport[role_label] = True if last_sport is None else (day - last_sport) >= SPORT_MIN_DAYS
 
+
+
+
+
+        # per-exercise cant_ex cooldown (10 days, independent per exercise)
+
+
+
+
         ex_map = {}
+
+
+
+
         for ex_ui in ["crunches", "pushups", "squats"]:
+
+
+
+
             ex_internal = _ex_to_internal(ex_ui)
+
+
+
+
             last_day = _last_cant_ex_day(state, internal, ex_internal)
+
+
+
+
             ex_map[ex_ui] = True if last_day is None else (day - last_day) >= CANT_MIN_DAYS
+
+
+
+
         can_cant_ex[role_label] = ex_map
 
-    return can_skip, can_sport, can_cant_ex
 
 
-def _resolve_cant_phrase_owner(state):
+
+
+    return can_skip, can_cant, can_sport, can_cant_ex
+
+
+def _build_phrase_category(state, role_view: str) -> str:
     """
-    Sticky-Auslöser für cant_ex:
-    - speichert wer zuerst gedrückt hat (pro Tag)
-    - bleibt sichtbar für beide Views
-    - wenn Undo alles entfernt -> verschwindet
-    - wenn Auslöser weg ist, aber der andere noch cant_ex hat -> wechselt auf den anderen
-    """
-    day = state["day"]
-    trig = state.get("cant_phrase", {}) or {}
-    trig_day = trig.get("day")
-    trig_by = trig.get("by")  # "male" / "female"
-
-    male_has = _has_cant_ex_today(state, "male")
-    female_has = _has_cant_ex_today(state, "female")
-    any_has = male_has or female_has
-
-    if not any_has:
-        return None  # kein cant_ex aktiv => keine cant-phrase
-
-    # Trigger für heutigen Tag initialisieren/validieren
-    if trig_day != day or trig_by not in ("male", "female"):
-        # wenn bereits cant_ex aktiv: deterministisch setzen (male bevorzugt, sonst female)
-        return "male" if male_has else "female"
-
-    # Trigger existiert, aber der Trigger-Owner hat heute gar kein cant_ex mehr
-    if trig_by == "male" and (not male_has) and female_has:
-        return "female"
-    if trig_by == "female" and (not female_has) and male_has:
-        return "male"
-
-    # Trigger ok
-    return trig_by
-
-
-def _build_phrase_category(state) -> str:
-    """
-    Kategorien entsprechen JSON-Files in static/phrases/.
-    Priorität (wie gewünscht): injured > skip > cant > done-status
-    Wichtig: view-unabhängig (beide sehen dasselbe).
+    Gibt eine Kategorie zurück, die direkt einem JSON-File im static/phrases/ Ordner entspricht.
+    Kategorien:
+      - none_done
+      - one_done_male / one_done_female
+      - all_done
+      - skip_male / skip_female
+      - cant_male / cant_female
+      - injured_male / injured_female
+      - cheater_male / cheater_female
     """
     day = state["day"]
+    active_internal = ROLE_TO_INTERNAL.get(role_view, "male")
+    other_internal = "female" if active_internal == "male" else "male"
 
-    male_inj = day in state.get("injured", {}).get("male", [])
-    female_inj = day in state.get("injured", {}).get("female", [])
-    if male_inj:
-        return "injured_male"
-    if female_inj:
-        return "injured_female"
+    flags = {}
+    for internal in ["male", "female"]:
+        sport_today = day in state.get("sport", {}).get(internal, [])
+        done_all = all(state["done"][internal].get(ex, False) for ex in EXERCISES)
 
-    male_skip = day in state.get("skip", {}).get("male", [])
-    female_skip = day in state.get("skip", {}).get("female", [])
-    if male_skip:
-        return "skip_male"
-    if female_skip:
-        return "skip_female"
+        # Sport zählt für die Sprüche wie "heute erledigt" (all exercises done)
+        if sport_today:
+            done_all = True
 
-    # cant_ex sticky phrase owner
-    cant_owner = _resolve_cant_phrase_owner(state)
-    if cant_owner == "male":
-        return "cant_male"
-    if cant_owner == "female":
-        return "cant_female"
+        flags[internal] = {
+        has_cant_ex_today = any(
+            day in state.get("cant_ex", {}).get(internal, {}).get(ex, [])
+            for ex in EXERCISES
+        )
 
-    # Done-Status: Sport zählt wie done_all
-    male_sport = day in state.get("sport", {}).get("male", [])
-    female_sport = day in state.get("sport", {}).get("female", [])
+            "injured": day in state["injured"].get(internal, []),
+            "cant": day in state["cant"].get(internal, []) or has_cant_ex_today,
+            "skip": day in state["skip"].get(internal, []),
+            "done_all": done_all,
+        }
 
-    male_done_all = male_sport or all(state["done"]["male"].get(ex, False) for ex in EXERCISES)
-    female_done_all = female_sport or all(state["done"]["female"].get(ex, False) for ex in EXERCISES)
+    def _suffix(internal_role: str) -> str:
+        return "male" if internal_role == "male" else "female"
 
-    if male_done_all and female_done_all:
+    # Priorität: Injured > Cant > Skip > Done-Status
+    if flags[active_internal]["injured"]:
+        return f"injured_{_suffix(active_internal)}"
+    if flags[other_internal]["injured"]:
+        return f"injured_{_suffix(other_internal)}"
+
+    if flags[active_internal]["cant"]:
+        return f"cant_{_suffix(active_internal)}"
+    if flags[other_internal]["cant"]:
+        return f"cant_{_suffix(other_internal)}"
+
+    if flags[active_internal]["skip"]:
+        return f"skip_{_suffix(active_internal)}"
+    if flags[other_internal]["skip"]:
+        return f"skip_{_suffix(other_internal)}"
+
+    # Done-Status
+    active_done = flags[active_internal]["done_all"]
+    other_done = flags[other_internal]["done_all"]
+
+    if active_done and other_done:
         return "all_done"
-    if male_done_all and not female_done_all:
-        return "one_done_male"
-    if female_done_all and not male_done_all:
-        return "one_done_female"
+    if active_done and not other_done:
+        return f"one_done_{_suffix(active_internal)}"
+    if other_done and not active_done:
+        return f"one_done_{_suffix(other_internal)}"
+
     return "none_done"
 
 
 def _build_client_state(state, role_view: str, message: str | None = None):
+    """Baut das JSON, das das Frontend erwartet."""
     current_date, weekday = calculate_current_date(state)
     date_str = current_date.strftime("%d.%m.%Y")
 
+    # Startdatum für Anzeige im Schweizer Format
     start_iso = state.get("start_date")
     start_display = start_iso
     try:
@@ -433,8 +574,8 @@ def _build_client_state(state, role_view: str, message: str | None = None):
     totals = _build_totals(state)
     reps_today = _build_reps_today(state)
     status = _build_status(state)
-    can_skip, can_sport, can_cant_ex = _build_can_flags(state)
-    phrase_category = _build_phrase_category(state)
+    can_skip, can_cant, can_sport, can_cant_ex = _build_can_flags(state)
+    phrase_category = _build_phrase_category(state, role_view)
 
     response = {
         "weekday": weekday,
@@ -446,7 +587,7 @@ def _build_client_state(state, role_view: str, message: str | None = None):
         "reps_today": reps_today,
         "status": status,
         "can_skip": can_skip,
-        "can_cant": {"mann": True, "frau": True},  # legacy payload; UI nutzt es nicht mehr
+        "can_cant": can_cant,
         "can_cant_ex": can_cant_ex,
         "can_sport": can_sport,
         "phrase_category": phrase_category,
@@ -457,10 +598,14 @@ def _build_client_state(state, role_view: str, message: str | None = None):
 
 
 def _apply_exercise(state, internal_person: str, internal_exercise: str):
+    """Setzt eine Übung auf erledigt und erhöht die Overall-Reps."""
     if internal_exercise not in EXERCISES:
         raise ValueError("Ungültige Übung")
+
     if internal_person not in ["male", "female"]:
         raise ValueError("Ungültige Person")
+
+    # Wenn schon erledigt, nichts tun
     if state["done"][internal_person].get(internal_exercise):
         return state, False
 
@@ -471,17 +616,26 @@ def _apply_exercise(state, internal_person: str, internal_exercise: str):
 
 
 def _apply_exercise_undo(state, internal_person: str, internal_exercise: str):
+    """
+    Macht eine erledigte Übung wieder rückgängig:
+    - done-Flag zurück auf False
+    - overall-Reps um die Tages-Reps reduzieren (aber nicht unter 0)
+    """
     if internal_exercise not in EXERCISES:
         raise ValueError("Ungültige Übung")
+
     if internal_person not in ["male", "female"]:
         raise ValueError("Ungültige Person")
+
+    # Wenn sie gar nicht erledigt war, gibt es nichts zu tun
     if not state["done"][internal_person].get(internal_exercise):
         return state, False
 
     state["done"][internal_person][internal_exercise] = False
     reps_today = state["reps"][internal_person][internal_exercise]
     current_overall = state["overall"][internal_person].get(internal_exercise, 0)
-    state["overall"][internal_person][internal_exercise] = max(0, current_overall - reps_today)
+    new_overall = max(0, current_overall - reps_today)
+    state["overall"][internal_person][internal_exercise] = new_overall
     return state, True
 
 
@@ -489,20 +643,27 @@ def _apply_skip(state, internal_person: str):
     day = state["day"]
     skip_days = state["skip"].get(internal_person, [])
     last_skip_day = max(skip_days) if skip_days else None
+
     if last_skip_day is not None and (day - last_skip_day) < SKIP_MIN_DAYS:
-        return state, "too_early"
+        cheater_days = state.get("cheater", {"male": [], "female": []}).setdefault(internal_person, [])
+        if day not in cheater_days:
+            cheater_days.append(day)
+        return state, "cheater_skip"
 
     if day not in skip_days:
         skip_days.append(day)
         state["skip"][internal_person] = skip_days
+
     return state, "ok"
 
 
 def _apply_skip_undo(state, internal_person: str):
+    """Entfernt den Skip-Status für den aktuellen Tag."""
     day = state["day"]
     skip_days = state["skip"].get(internal_person, [])
     if day in skip_days:
-        state["skip"][internal_person] = [d for d in skip_days if d != day]
+        skip_days = [d for d in skip_days if d != day]
+        state["skip"][internal_person] = skip_days
         return state, "ok"
     return state, "noop"
 
@@ -517,39 +678,62 @@ def _apply_injured(state, internal_person: str):
 
 
 def _apply_injured_undo(state, internal_person: str):
+    """Entfernt den krank/verletzt-Status für den aktuellen Tag."""
     day = state["day"]
     injured_days = state["injured"].get(internal_person, [])
     if day in injured_days:
-        state["injured"][internal_person] = [d for d in injured_days if d != day]
+        injured_days = [d for d in injured_days if d != day]
+        state["injured"][internal_person] = injured_days
         return state, "ok"
     return state, "noop"
 
 
-def _apply_sport(state, internal_person: str):
+def _apply_cant(state, internal_person: str, password: str):
+    if password != CANT_PASSWORD:
+        return state, "wrong_password"
+
     day = state["day"]
+    cant_days = state["cant"].get(internal_person, [])
+    last_cant_day = max(cant_days) if cant_days else None
 
-    # Wenn der Tag bereits "abgeschlossen" ist (done_all/skip/injured/cant/sport), Sport nicht mehr setzen
-    if is_day_closed_for_person(state, internal_person):
-        if day in state.get("sport", {}).get(internal_person, []):
-            return state, "already"
-        return state, "not_allowed"
+    if last_cant_day is not None and (day - last_cant_day) < CANT_MIN_DAYS:
+        cheater_days = state.get("cheater", {"male": [], "female": []}).setdefault(internal_person, [])
+        if day not in cheater_days:
+            cheater_days.append(day)
+        return state, "cheater_cant"
 
-    sport_days = state.get("sport", {}).get(internal_person, [])
-    if day in sport_days:
-        return state, "already"
+    if day not in cant_days:
+        cant_days.append(day)
+        state["cant"][internal_person] = cant_days
 
-    sport_days.append(day)
-    state["sport"][internal_person] = sport_days
+    for ex in EXERCISES:
+        current_reps = state["reps"][internal_person].get(ex, START_REPS)
+        new_reps = max(1, current_reps - CANT_REDUCTION)
+        state["reps"][internal_person][ex] = new_reps
+
     return state, "ok"
 
 
-def _apply_sport_undo(state, internal_person: str):
+def _apply_cant_undo(state, internal_person: str):
+    """
+    Entfernt den „Ich kann nicht mehr!“-Status für den aktuellen Tag
+    und setzt die Reps um CANT_REDUCTION wieder her.
+    """
     day = state["day"]
-    sport_days = state.get("sport", {}).get(internal_person, [])
-    if day in sport_days:
-        state["sport"][internal_person] = [d for d in sport_days if d != day]
-        return state, "ok"
-    return state, "noop"
+    cant_days = state["cant"].get(internal_person, [])
+    if day not in cant_days:
+        return state, "noop"
+
+    cant_days = [d for d in cant_days if d != day]
+    state["cant"][internal_person] = cant_days
+
+    for ex in EXERCISES:
+        current_reps = state["reps"][internal_person].get(ex, START_REPS)
+        state["reps"][internal_person][ex] = current_reps + CANT_REDUCTION
+
+    return state, "ok"
+
+
 
 
 def _is_cant_exercise_today(state, internal_person: str, internal_exercise: str) -> bool:
@@ -559,12 +743,12 @@ def _is_cant_exercise_today(state, internal_person: str, internal_exercise: str)
     days = cant_ex.get(ex_internal, []) or []
     return day in days
 
-
 def _apply_cant_exercise(state, internal_person: str, internal_exercise: str):
     """Setzt per-Übung 'cant_ex' für HEUTE und reduziert NUR diese Übung um CANT_REDUCTION."""
     day = state["day"]
     ex_internal = _ex_to_internal(internal_exercise)
 
+    # cooldown check (per exercise)
     last_day = _last_cant_ex_day(state, internal_person, ex_internal)
     if last_day is not None and (day - last_day) < CANT_MIN_DAYS and day != last_day:
         return state, "too_early"
@@ -572,22 +756,19 @@ def _apply_cant_exercise(state, internal_person: str, internal_exercise: str):
     cant_ex = state.setdefault("cant_ex", {}).setdefault(internal_person, {})
     days = cant_ex.get(ex_internal, []) or []
 
+    # already set today -> do not reduce twice
     if day in days:
         return state, "already"
 
+    # mark today
     days.append(day)
     cant_ex[ex_internal] = sorted(set(days))
 
+    # reduce reps for THIS exercise only
     cur = int(state["reps"][internal_person].get(ex_internal, START_REPS))
     state["reps"][internal_person][ex_internal] = max(1, cur - CANT_REDUCTION)
 
-    # Sticky phrase trigger: nur wenn heute noch keiner gesetzt ist
-    trig = state.get("cant_phrase", {}) or {}
-    if trig.get("day") != day or trig.get("by") not in ("male", "female"):
-        state["cant_phrase"] = {"day": day, "by": internal_person}
-
     return state, "ok"
-
 
 def _apply_cant_exercise_undo(state, internal_person: str, internal_exercise: str):
     """Hebt per-Übung 'cant_ex' für HEUTE auf und stellt die Reps (nur diese Übung) wieder her."""
@@ -599,29 +780,15 @@ def _apply_cant_exercise_undo(state, internal_person: str, internal_exercise: st
     if day not in days:
         return state, "not_set"
 
+    # remove today flag
     cant_ex[ex_internal] = [d for d in days if d != day]
     state["cant_ex"][internal_person] = cant_ex
 
+    # restore reps for THIS exercise only
     cur = int(state["reps"][internal_person].get(ex_internal, START_REPS))
     state["reps"][internal_person][ex_internal] = cur + CANT_REDUCTION
 
-    # Sticky trigger ggf. anpassen/entfernen
-    trig = state.get("cant_phrase", {}) or {}
-    if trig.get("day") == day:
-        male_has = _has_cant_ex_today(state, "male")
-        female_has = _has_cant_ex_today(state, "female")
-        if not (male_has or female_has):
-            state["cant_phrase"] = {}
-        else:
-            # wenn Trigger-Owner keine cant_ex mehr hat, aber der andere schon -> switch
-            by = trig.get("by")
-            if by == "male" and (not male_has) and female_has:
-                state["cant_phrase"] = {"day": day, "by": "female"}
-            elif by == "female" and (not female_has) and male_has:
-                state["cant_phrase"] = {"day": day, "by": "male"}
-
     return state, "ok"
-
 
 @app.route("/")
 def index():
@@ -631,10 +798,23 @@ def index():
     else:
         role = "mann"
 
-    male_name = request.args.get("male_name") or request.args.get("mann") or DEFAULT_MALE_NAME
-    female_name = request.args.get("female_name") or request.args.get("frau") or DEFAULT_FEMALE_NAME
+    male_name = (
+        request.args.get("male_name")
+        or request.args.get("mann")
+        or DEFAULT_MALE_NAME
+    )
+    female_name = (
+        request.args.get("female_name")
+        or request.args.get("frau")
+        or DEFAULT_FEMALE_NAME
+    )
 
-    return render_template("index.html", role=role, male_name=male_name, female_name=female_name)
+    return render_template(
+        "index.html",
+        role=role,
+        male_name=male_name,
+        female_name=female_name,
+    )
 
 
 @app.route("/api/state")
@@ -654,16 +834,14 @@ def api_action():
 
     internal_person = ROLE_TO_INTERNAL[role_view]
     day = state["day"]
+
     message = ""
 
-    # Wenn "sport" aktiv ist, sind ALLE anderen Aktionen gesperrt (ausser sport_undo)
+    # Wenn "sport" aktiv ist, sind ALLE anderen Aktionen gesperrt (gemäss Vorgabe),
+    # ausser sport_undo (toggle).
     sport_today = day in state.get("sport", {}).get(internal_person, [])
     if sport_today and action not in ("sport_undo",):
-        resp = _build_client_state(
-            state,
-            role_view,
-            "Heute ist bereits als „Sport gemacht“ markiert. Erst wieder deaktivieren, dann ändern."
-        )
+        resp = _build_client_state(state, role_view, "Heute ist bereits als „Sport gemacht“ markiert. Erst wieder deaktivieren, dann ändern.")
         return jsonify(resp), 403
 
     try:
@@ -673,7 +851,10 @@ def api_action():
                 return jsonify({"error": "Ungültige Übung"}), 400
             internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
             state, changed = _apply_exercise(state, internal_person, internal_ex)
-            message = f"{exercise_external.capitalize()} erledigt." if changed else f"{exercise_external.capitalize()} war bereits erledigt."
+            if changed:
+                message = f"{exercise_external.capitalize()} erledigt."
+            else:
+                message = f"{exercise_external.capitalize()} war bereits erledigt."
 
         elif action == "exercise_undo":
             exercise_external = data.get("exercise")
@@ -681,15 +862,24 @@ def api_action():
                 return jsonify({"error": "Ungültige Übung"}), 400
             internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
             state, changed = _apply_exercise_undo(state, internal_person, internal_ex)
-            message = f"{exercise_external.capitalize()} wieder abgewählt." if changed else f"{exercise_external.capitalize()} war nicht als erledigt markiert."
+            if changed:
+                message = f"{exercise_external.capitalize()} wieder abgewählt."
+            else:
+                message = f"{exercise_external.capitalize()} war nicht als erledigt markiert."
 
         elif action == "skip":
             state, status = _apply_skip(state, internal_person)
-            message = "Skip zu früh (Cooldown 7 Tage)." if status == "too_early" else "Skip-Tag gesetzt. Heute offiziell faul."
+            if status == "cheater_skip":
+                message = "Skip zu früh – Cheater erkannt."
+            else:
+                message = "Skip-Tag gesetzt. Heute offiziell faul."
 
         elif action == "skip_undo":
             state, status = _apply_skip_undo(state, internal_person)
-            message = "Skip-Tag zurückgenommen." if status == "ok" else "Für heute war kein Skip gesetzt."
+            if status == "ok":
+                message = "Skip-Tag zurückgenommen."
+            else:
+                message = "Für heute war kein Skip gesetzt."
 
         elif action == "injured":
             state, _ = _apply_injured(state, internal_person)
@@ -697,15 +887,47 @@ def api_action():
 
         elif action == "injured_undo":
             state, status = _apply_injured_undo(state, internal_person)
-            message = "krank/verletzt-Status zurückgenommen." if status == "ok" else "Für heute war kein krank/verletzt-Status gesetzt."
+            if status == "ok":
+                message = "krank/verletzt-Status zurückgenommen."
+            else:
+                message = "Für heute war kein krank/verletzt-Status gesetzt."
+
+        elif action == "cant":
+            password = data.get("password", "")
+            state, status = _apply_cant(state, internal_person, password)
+            if status == "wrong_password":
+                state = load_state()
+                resp = _build_client_state(
+                    state,
+                    role_view,
+                    "Falsches Passwort für „Ich kann nicht mehr!“."
+                )
+                return jsonify(resp), 403
+            elif status in ("cheater_cant", "cheater_cant_ex"):
+                message = "„Ich kann nicht mehr!“ ist noch im Cooldown (10 Tage)."
+            else:
+                message = "Reps reduziert. Heute war's hart genug."
+
+        elif action == "cant_undo":
+            state, status = _apply_cant_undo(state, internal_person)
+            if status == "ok":
+                message = "„Ich kann nicht mehr!“-Status zurückgenommen."
+            else:
+                message = "Für heute war kein „Ich kann nicht mehr!“-Status gesetzt."
+
 
         elif action == "cant_exercise":
             exercise_external = data.get("exercise")
             if exercise_external not in EXTERNAL_TO_INTERNAL_EXERCISE:
                 return jsonify({"error": "Ungültige Übung"}), 400
             internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
+            password = data.get("password", "")
             state, status = _apply_cant_exercise(state, internal_person, internal_ex)
-            if status == "too_early":
+            if status == "wrong_password":
+                state = load_state()
+                resp = _build_client_state(state, role_view, "Falsches Passwort für „Ich kann nicht mehr!“ (Übung).")
+                return jsonify(resp), 403
+            elif status in ("cheater_cant", "cheater_cant_ex"):
                 message = "„Ich kann nicht mehr!“ ist noch im Cooldown (10 Tage)."
             elif status == "already":
                 message = f"„Ich kann nicht mehr!“ für {exercise_external} ist heute bereits gesetzt."
@@ -718,8 +940,12 @@ def api_action():
                 return jsonify({"error": "Ungültige Übung"}), 400
             internal_ex = EXTERNAL_TO_INTERNAL_EXERCISE[exercise_external]
             state, status = _apply_cant_exercise_undo(state, internal_person, internal_ex)
-            message = f"„Ich kann nicht mehr!“ für {exercise_external} zurückgenommen." if status == "ok" else f"Für {exercise_external} war heute kein „Ich kann nicht mehr!“ gesetzt."
+            if status == "ok":
+                message = f"„Ich kann nicht mehr!“ für {exercise_external} zurückgenommen."
+            else:
+                message = f"Für {exercise_external} war heute kein „Ich kann nicht mehr!“ gesetzt."
 
+        # NEW: heute sport gemacht (togglebar)
         elif action == "sport":
             state, status = _apply_sport(state, internal_person)
             if status == "not_allowed":
@@ -731,7 +957,10 @@ def api_action():
 
         elif action == "sport_undo":
             state, status = _apply_sport_undo(state, internal_person)
-            message = "„Sport gemacht“ für heute zurückgenommen." if status == "ok" else "Für heute war kein „Sport gemacht“ gesetzt."
+            if status == "ok":
+                message = "„Sport gemacht“ für heute zurückgenommen."
+            else:
+                message = "Für heute war kein „Sport gemacht“ gesetzt."
 
         else:
             return jsonify({"error": "Ungültige Aktion"}), 400
@@ -749,18 +978,17 @@ def api_nextday():
 
     for internal in ["male", "female"]:
         if not is_day_closed_for_person(state, internal):
-            return jsonify({"error": f"{internal} ist für diesen Tag noch nicht fertig."}), 400
+            return (
+                jsonify({"error": f"{internal} ist für diesen Tag noch nicht fertig."}),
+                400,
+            )
 
     state["day"] += 1
 
-    # neuer Tag: done reset + reps +1
     for internal in ["male", "female"]:
         for ex in EXERCISES:
             state["done"][internal][ex] = False
             state["reps"][internal][ex] += 1
-
-    # sticky cant phrase reset (implizit über day mismatch, aber sauber leeren)
-    state["cant_phrase"] = {}
 
     save_state(state)
     resp = _build_client_state(state, "mann", "Neuer Tag gestartet.")
